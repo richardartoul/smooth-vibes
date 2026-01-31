@@ -11,7 +11,7 @@ import (
 	"vc/ui"
 )
 
-// AppState represents the current state of the application
+// AppState represents the current state of the application.
 type AppState int
 
 const (
@@ -183,4 +183,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
