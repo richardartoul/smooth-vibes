@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -14,47 +15,68 @@ import (
 type SaveState int
 
 const (
-	SaveStateInput SaveState = iota
+	SaveStateReview SaveState = iota
+	SaveStateGitignorePrompt
+	SaveStateInput
 	SaveStateSaving
 	SaveStateSuccess
 	SaveStateError
 	SaveStateNoChanges
 )
 
+// FileSelection represents a file with its selection state
+type FileSelection struct {
+	Change   git.FileChange
+	Selected bool
+}
+
 // SaveModel is the model for the save flow
 type SaveModel struct {
-	textInput textinput.Model
-	state     SaveState
-	err       error
-	changes   []git.FileChange
+	textInput        textinput.Model
+	state            SaveState
+	err              error
+	files            []FileSelection
+	cursor           int
+	gitignoreFile    string // file being considered for gitignore
+	gitignoreIdx     int    // index of that file
 }
 
 // NewSaveModel creates a new save model
 func NewSaveModel() SaveModel {
 	ti := textinput.New()
 	ti.Placeholder = "What did you work on?"
-	ti.Focus()
 	ti.CharLimit = 100
 	ti.Width = 50
 	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorAccent)
 	ti.TextStyle = lipgloss.NewStyle().Foreground(ColorText)
 
-	state := SaveStateInput
 	changes, _ := git.GetChangeSummary()
+	
+	state := SaveStateReview
 	if len(changes) == 0 {
 		state = SaveStateNoChanges
+	}
+
+	// Convert to FileSelection with all selected by default
+	files := make([]FileSelection, len(changes))
+	for i, c := range changes {
+		files[i] = FileSelection{
+			Change:   c,
+			Selected: true,
+		}
 	}
 
 	return SaveModel{
 		textInput: ti,
 		state:     state,
-		changes:   changes,
+		files:     files,
+		cursor:    0,
 	}
 }
 
 // Init initializes the save model
 func (m SaveModel) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 // SaveMsg is sent when a save operation completes
@@ -63,10 +85,10 @@ type SaveMsg struct {
 }
 
 // doSave performs the actual git operations
-func doSave(message string) tea.Cmd {
+func doSave(message string, files []string) tea.Cmd {
 	return func() tea.Msg {
-		// Stage all changes
-		if err := git.AddAll(); err != nil {
+		// Stage selected files
+		if err := git.AddFiles(files); err != nil {
 			return SaveMsg{Err: err}
 		}
 
@@ -77,6 +99,28 @@ func doSave(message string) tea.Cmd {
 
 		return SaveMsg{Err: nil}
 	}
+}
+
+// getSelectedFiles returns paths of selected files
+func (m SaveModel) getSelectedFiles() []string {
+	var paths []string
+	for _, f := range m.files {
+		if f.Selected {
+			paths = append(paths, f.Change.Path)
+		}
+	}
+	return paths
+}
+
+// countSelected returns count of selected files
+func (m SaveModel) countSelected() int {
+	count := 0
+	for _, f := range m.files {
+		if f.Selected {
+			count++
+		}
+	}
+	return count
 }
 
 // Update handles messages for the save model
@@ -92,19 +136,63 @@ func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter":
-			if m.state == SaveStateInput && m.textInput.Value() != "" {
-				m.state = SaveStateSaving
-				return m, doSave(m.textInput.Value())
+		switch m.state {
+		case SaveStateReview:
+			switch {
+			case key.Matches(msg, keys.Up):
+				if m.cursor > 0 {
+					m.cursor--
+				}
+			case key.Matches(msg, keys.Down):
+				if m.cursor < len(m.files)-1 {
+					m.cursor++
+				}
+			case msg.String() == " ":
+				// Toggle selection
+				wasSelected := m.files[m.cursor].Selected
+				m.files[m.cursor].Selected = !wasSelected
+				
+				// If deselecting, prompt for gitignore
+				if wasSelected {
+					m.gitignoreFile = m.files[m.cursor].Change.Path
+					m.gitignoreIdx = m.cursor
+					m.state = SaveStateGitignorePrompt
+				}
+			case key.Matches(msg, keys.Enter):
+				if m.countSelected() > 0 {
+					m.state = SaveStateInput
+					m.textInput.Focus()
+					return m, textinput.Blink
+				}
+			}
+
+		case SaveStateGitignorePrompt:
+			switch msg.String() {
+			case "y", "Y":
+				// Add to gitignore
+				git.AddToGitignore(m.gitignoreFile)
+				m.state = SaveStateReview
+			case "n", "N", "esc":
+				m.state = SaveStateReview
+			}
+
+		case SaveStateInput:
+			switch msg.String() {
+			case "enter":
+				if m.textInput.Value() != "" {
+					m.state = SaveStateSaving
+					return m, doSave(m.textInput.Value(), m.getSelectedFiles())
+				}
+			case "esc":
+				// Go back to review
+				m.state = SaveStateReview
+				return m, nil
+			default:
+				var cmd tea.Cmd
+				m.textInput, cmd = m.textInput.Update(msg)
+				return m, cmd
 			}
 		}
-	}
-
-	if m.state == SaveStateInput {
-		var cmd tea.Cmd
-		m.textInput, cmd = m.textInput.Update(msg)
-		return m, cmd
 	}
 
 	return m, nil
@@ -122,13 +210,29 @@ func (m SaveModel) View() string {
 		s += RenderMuted("Your work is already saved.") + "\n\n"
 		s += HelpText("Press any key to go back")
 
+	case SaveStateReview:
+		s += RenderSubtitle("Select files to save:") + "\n\n"
+		s += m.renderFileList() + "\n"
+		
+		selected := m.countSelected()
+		total := len(m.files)
+		s += MutedStyle.Render(fmt.Sprintf("%d of %d files selected", selected, total)) + "\n\n"
+		
+		s += HelpText("↑/↓: navigate • space: toggle • enter: continue • esc: cancel")
+
+	case SaveStateGitignorePrompt:
+		s += RenderSubtitle("Add to .gitignore?") + "\n\n"
+		s += "You deselected: " + HighlightStyle.Render(m.gitignoreFile) + "\n\n"
+		s += RenderMuted("Would you like to add this file to .gitignore") + "\n"
+		s += RenderMuted("so it's never tracked?") + "\n\n"
+		s += HelpText("y: yes, add to .gitignore • n: no, just skip this time")
+
 	case SaveStateInput:
-		// Show changes summary
-		s += RenderSubtitle("Changes to be saved:") + "\n\n"
-		s += m.renderChanges() + "\n"
+		// Show summary of what will be saved
+		s += m.renderSummary() + "\n"
 		s += RenderSubtitle("Describe what you worked on:") + "\n\n"
 		s += m.textInput.View() + "\n\n"
-		s += HelpText("enter: save • esc: cancel")
+		s += HelpText("enter: save • esc: go back")
 
 	case SaveStateSaving:
 		s += RenderHighlight("Saving your progress...") + "\n"
@@ -149,60 +253,35 @@ func (m SaveModel) View() string {
 	return BoxStyle.Render(s)
 }
 
-// IsDone returns true if the save flow is complete
-func (m SaveModel) IsDone() bool {
-	return m.state == SaveStateSuccess || m.state == SaveStateError || m.state == SaveStateNoChanges
-}
-
-// renderChanges renders the list of changed files
-func (m SaveModel) renderChanges() string {
+// renderFileList renders the interactive file list
+func (m SaveModel) renderFileList() string {
 	var s string
 
-	// Count by type
-	added, modified, deleted := 0, 0, 0
-	for _, c := range m.changes {
-		switch c.Status {
-		case "added":
-			added++
-		case "deleted":
-			deleted++
-		default:
-			modified++
-		}
+	maxVisible := 10
+	start := 0
+	if m.cursor >= maxVisible {
+		start = m.cursor - maxVisible + 1
 	}
 
-	// Summary line
-	var parts []string
-	if added > 0 {
-		parts = append(parts, SuccessStyle.Render(fmt.Sprintf("+%d added", added)))
-	}
-	if modified > 0 {
-		parts = append(parts, HighlightStyle.Render(fmt.Sprintf("~%d modified", modified)))
-	}
-	if deleted > 0 {
-		parts = append(parts, ErrorStyle.Render(fmt.Sprintf("-%d deleted", deleted)))
-	}
-
-	for i, part := range parts {
-		if i > 0 {
-			s += "  "
-		}
-		s += part
-	}
-	s += "\n\n"
-
-	// File list (show up to 8 files)
-	maxFiles := 8
-	for i, c := range m.changes {
-		if i >= maxFiles {
-			remaining := len(m.changes) - maxFiles
-			s += MutedStyle.Render(fmt.Sprintf("  ... and %d more files\n", remaining))
-			break
+	for i := start; i < len(m.files) && i < start+maxVisible; i++ {
+		f := m.files[i]
+		
+		// Cursor
+		cursor := "  "
+		if i == m.cursor {
+			cursor = MenuCursorStyle.Render("> ")
 		}
 
+		// Checkbox
+		checkbox := "[ ]"
+		if f.Selected {
+			checkbox = SuccessStyle.Render("[✓]")
+		}
+
+		// Status icon
 		var icon string
 		var style lipgloss.Style
-		switch c.Status {
+		switch f.Change.Status {
 		case "added":
 			icon = "+"
 			style = SuccessStyle
@@ -214,9 +293,72 @@ func (m SaveModel) renderChanges() string {
 			style = HighlightStyle
 		}
 
-		s += fmt.Sprintf("  %s %s\n", style.Render(icon), MutedStyle.Render(c.Path))
+		// File path
+		path := f.Change.Path
+		if len(path) > 45 {
+			path = "..." + path[len(path)-42:]
+		}
+
+		pathStyle := NormalStyle
+		if !f.Selected {
+			pathStyle = MutedStyle
+		}
+
+		s += fmt.Sprintf("%s%s %s %s\n", cursor, checkbox, style.Render(icon), pathStyle.Render(path))
+	}
+
+	if len(m.files) > maxVisible {
+		s += MutedStyle.Render(fmt.Sprintf("\n  ... %d total files", len(m.files)))
 	}
 
 	return s
 }
 
+// renderSummary renders the summary of selected changes
+func (m SaveModel) renderSummary() string {
+	var s string
+
+	// Count by type (only selected)
+	added, modified, deleted := 0, 0, 0
+	for _, f := range m.files {
+		if !f.Selected {
+			continue
+		}
+		switch f.Change.Status {
+		case "added":
+			added++
+		case "deleted":
+			deleted++
+		default:
+			modified++
+		}
+	}
+
+	s += RenderSubtitle("Saving:") + " "
+	
+	var parts []string
+	if added > 0 {
+		parts = append(parts, SuccessStyle.Render(fmt.Sprintf("+%d", added)))
+	}
+	if modified > 0 {
+		parts = append(parts, HighlightStyle.Render(fmt.Sprintf("~%d", modified)))
+	}
+	if deleted > 0 {
+		parts = append(parts, ErrorStyle.Render(fmt.Sprintf("-%d", deleted)))
+	}
+
+	for i, part := range parts {
+		if i > 0 {
+			s += " "
+		}
+		s += part
+	}
+	s += "\n\n"
+
+	return s
+}
+
+// IsDone returns true if the save flow is complete
+func (m SaveModel) IsDone() bool {
+	return m.state == SaveStateSuccess || m.state == SaveStateError || m.state == SaveStateNoChanges
+}

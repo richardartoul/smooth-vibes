@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -43,6 +44,33 @@ func CurrentBranch() (string, error) {
 func AddAll() error {
 	_, err := Run("add", "-A")
 	return err
+}
+
+// AddFiles stages specific files
+func AddFiles(paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	args := append([]string{"add", "--"}, paths...)
+	_, err := Run(args...)
+	return err
+}
+
+// AddToGitignore adds a pattern to .gitignore
+func AddToGitignore(pattern string) error {
+	// Read existing gitignore
+	f, err := os.OpenFile(".gitignore", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Add newline + pattern
+	if _, err := f.WriteString("\n" + pattern); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Commit creates a commit with the given message
