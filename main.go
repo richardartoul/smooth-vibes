@@ -96,6 +96,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = StateExperiments
 				m.experiments = ui.NewExperimentsModel()
 				return m, m.experiments.Init()
+			case ui.ActionKeepExperiment:
+				m.state = StateExperiments
+				var cmd tea.Cmd
+				m.experiments, cmd = ui.NewKeepExperimentModel()
+				return m, cmd
+			case ui.ActionAbandonExperiment:
+				m.state = StateExperiments
+				var cmd tea.Cmd
+				m.experiments, cmd = ui.NewAbandonExperimentModel()
+				return m, cmd
 			case ui.ActionQuit:
 				return m, tea.Quit
 			}

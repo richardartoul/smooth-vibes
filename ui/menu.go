@@ -25,56 +25,86 @@ const (
 	ActionSync
 	ActionRestore
 	ActionExperiments
+	ActionKeepExperiment
+	ActionAbandonExperiment
 	ActionQuit
 )
 
 // MenuModel is the model for the main menu
 type MenuModel struct {
-	items    []MenuItem
-	cursor   int
-	branch   string
+	items      []MenuItem
+	cursor     int
+	branch     string
 	hasChanges bool
+	isOnMain   bool
 }
 
 // NewMenuModel creates a new menu model
 func NewMenuModel() MenuModel {
+	branch, _ := git.CurrentBranch()
+	hasChanges := git.HasChanges()
+	isOnMain := git.IsOnMain()
+
+	m := MenuModel{
+		cursor:     0,
+		branch:     branch,
+		hasChanges: hasChanges,
+		isOnMain:   isOnMain,
+	}
+	m.items = m.buildMenuItems()
+	return m
+}
+
+// buildMenuItems creates the menu items based on current state
+func (m MenuModel) buildMenuItems() []MenuItem {
 	items := []MenuItem{
 		{
 			Title:       "Save my current progress",
 			Description: "Create a save point of your current work",
 			Action:      ActionSave,
 		},
-		{
-			Title:       "Sync to GitHub",
-			Description: "Upload your saves to the cloud",
-			Action:      ActionSync,
-		},
-		{
+	}
+
+	// Add experiment-specific actions when on an experiment branch
+	if !m.isOnMain {
+		items = append(items,
+			MenuItem{
+				Title:       "Keep this experiment",
+				Description: "Merge this experiment into your main work",
+				Action:      ActionKeepExperiment,
+			},
+			MenuItem{
+				Title:       "Abandon this experiment",
+				Description: "Discard this experiment and go back to main",
+				Action:      ActionAbandonExperiment,
+			},
+		)
+	}
+
+	items = append(items,
+		MenuItem{
 			Title:       "Go back to a previous state",
 			Description: "Restore your project to an earlier save point",
 			Action:      ActionRestore,
 		},
-		{
+		MenuItem{
 			Title:       "Experiments",
 			Description: "Try new ideas without breaking your main work",
 			Action:      ActionExperiments,
 		},
-		{
+		MenuItem{
+			Title:       "Sync to GitHub",
+			Description: "Upload your saves to the cloud",
+			Action:      ActionSync,
+		},
+		MenuItem{
 			Title:       "Quit",
 			Description: "Exit the application",
 			Action:      ActionQuit,
 		},
-	}
+	)
 
-	branch, _ := git.CurrentBranch()
-	hasChanges := git.HasChanges()
-
-	return MenuModel{
-		items:      items,
-		cursor:     0,
-		branch:     branch,
-		hasChanges: hasChanges,
-	}
+	return items
 }
 
 // Init initializes the menu model
@@ -108,9 +138,13 @@ func (m MenuModel) View() string {
 	s += Banner() + "\n\n"
 
 	// Status bar
-	statusText := fmt.Sprintf("Branch: %s", m.branch)
+	branchDisplay := m.branch
+	if !m.isOnMain {
+		branchDisplay = HighlightStyle.Render(m.branch) + " " + MutedStyle.Render("(experiment)")
+	}
+	statusText := fmt.Sprintf("Branch: %s", branchDisplay)
 	if m.hasChanges {
-		statusText += " " + HighlightStyle.Render("(unsaved changes)")
+		statusText += " " + SuccessStyle.Render("(unsaved changes)")
 	}
 	s += HeaderBoxStyle.Render(statusText) + "\n\n"
 
@@ -148,6 +182,12 @@ func (m MenuModel) SelectedAction() MenuAction {
 func (m *MenuModel) RefreshStatus() {
 	m.branch, _ = git.CurrentBranch()
 	m.hasChanges = git.HasChanges()
+	m.isOnMain = git.IsOnMain()
+	m.items = m.buildMenuItems()
+	// Reset cursor if it's out of bounds
+	if m.cursor >= len(m.items) {
+		m.cursor = len(m.items) - 1
+	}
 }
 
 // Key bindings

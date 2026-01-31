@@ -24,6 +24,7 @@ const (
 	ExperimentsStateSwitching
 	ExperimentsStateSuccess
 	ExperimentsStateError
+	ExperimentsStateUnsavedWarning
 )
 
 // ExperimentsAction represents the selected action
@@ -39,15 +40,17 @@ const (
 
 // ExperimentsModel is the model for the experiments flow
 type ExperimentsModel struct {
-	state       ExperimentsState
-	cursor      int
-	textInput   textinput.Model
-	experiments []git.BranchInfo
-	expCursor   int
+	state         ExperimentsState
+	cursor        int
+	textInput     textinput.Model
+	experiments   []git.BranchInfo
+	expCursor     int
 	currentBranch string
-	isOnMain    bool
-	err         error
-	message     string
+	isOnMain      bool
+	hasChanges    bool
+	err           error
+	message       string
+	blockedAction ExperimentsAction // action that was blocked by unsaved changes
 }
 
 type experimentsMenuItem struct {
@@ -59,6 +62,40 @@ type experimentsMenuItem struct {
 
 // NewExperimentsModel creates a new experiments model
 func NewExperimentsModel() ExperimentsModel {
+	return newExperimentsModelWithAction(ExperimentsStateMenu, ExpActionBack)
+}
+
+// NewKeepExperimentModel creates an experiments model that starts the keep flow
+func NewKeepExperimentModel() (ExperimentsModel, tea.Cmd) {
+	m := newExperimentsModelWithAction(ExperimentsStateMenu, ExpActionKeep)
+	
+	// Check for unsaved changes
+	if m.hasChanges {
+		m.blockedAction = ExpActionKeep
+		m.state = ExperimentsStateUnsavedWarning
+		return m, nil
+	}
+	
+	m.state = ExperimentsStateKeeping
+	return m, doKeepExperiment()
+}
+
+// NewAbandonExperimentModel creates an experiments model that starts the abandon flow
+func NewAbandonExperimentModel() (ExperimentsModel, tea.Cmd) {
+	m := newExperimentsModelWithAction(ExperimentsStateMenu, ExpActionAbandon)
+	
+	// Check for unsaved changes
+	if m.hasChanges {
+		m.blockedAction = ExpActionAbandon
+		m.state = ExperimentsStateUnsavedWarning
+		return m, nil
+	}
+	
+	m.state = ExperimentsStateAbandoning
+	return m, doAbandonExperiment()
+}
+
+func newExperimentsModelWithAction(state ExperimentsState, action ExperimentsAction) ExperimentsModel {
 	ti := textinput.New()
 	ti.Placeholder = "my-cool-idea"
 	ti.CharLimit = 30
@@ -69,14 +106,17 @@ func NewExperimentsModel() ExperimentsModel {
 	branch, _ := git.CurrentBranch()
 	isOnMain := git.IsOnMain()
 	experiments, _ := git.ListExperiments()
+	hasChanges := git.HasChanges()
 
 	return ExperimentsModel{
-		state:         ExperimentsStateMenu,
+		state:         state,
 		cursor:        0,
 		textInput:     ti,
 		experiments:   experiments,
 		currentBranch: branch,
 		isOnMain:      isOnMain,
+		hasChanges:    hasChanges,
+		blockedAction: action,
 	}
 }
 
@@ -234,9 +274,21 @@ func (m ExperimentsModel) Update(msg tea.Msg) (ExperimentsModel, tea.Cmd) {
 					m.textInput.Focus()
 					return m, textinput.Blink
 				case ExpActionKeep:
+					// Check for unsaved changes first
+					if m.hasChanges {
+						m.blockedAction = ExpActionKeep
+						m.state = ExperimentsStateUnsavedWarning
+						return m, nil
+					}
 					m.state = ExperimentsStateKeeping
 					return m, doKeepExperiment()
 				case ExpActionAbandon:
+					// Check for unsaved changes first
+					if m.hasChanges {
+						m.blockedAction = ExpActionAbandon
+						m.state = ExperimentsStateUnsavedWarning
+						return m, nil
+					}
 					m.state = ExperimentsStateAbandoning
 					return m, doAbandonExperiment()
 				case ExpActionSwitch:
@@ -281,6 +333,10 @@ func (m ExperimentsModel) Update(msg tea.Msg) (ExperimentsModel, tea.Cmd) {
 			case msg.String() == "esc":
 				m.state = ExperimentsStateMenu
 			}
+
+		case ExperimentsStateUnsavedWarning:
+			// Any key goes back to menu
+			m.state = ExperimentsStateMenu
 		}
 	}
 
@@ -380,6 +436,18 @@ func (m ExperimentsModel) View() string {
 		if m.err != nil {
 			s += RenderMuted(m.err.Error()) + "\n\n"
 		}
+		s += HelpText("Press any key to go back")
+
+	case ExperimentsStateUnsavedWarning:
+		s += RenderError("⚠ You have unsaved changes!") + "\n\n"
+		
+		actionName := "keep"
+		if m.blockedAction == ExpActionAbandon {
+			actionName = "abandon"
+		}
+		s += RenderMuted(fmt.Sprintf("You need to save your progress before you can %s", actionName)) + "\n"
+		s += RenderMuted("this experiment.") + "\n\n"
+		s += RenderSubtitle("Go back and use \"Save my current progress\" first.") + "\n\n"
 		s += HelpText("Press any key to go back")
 	}
 
