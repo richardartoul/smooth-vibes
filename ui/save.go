@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -24,6 +26,7 @@ type SaveModel struct {
 	textInput textinput.Model
 	state     SaveState
 	err       error
+	changes   []git.FileChange
 }
 
 // NewSaveModel creates a new save model
@@ -37,13 +40,15 @@ func NewSaveModel() SaveModel {
 	ti.TextStyle = lipgloss.NewStyle().Foreground(ColorText)
 
 	state := SaveStateInput
-	if !git.HasChanges() {
+	changes, _ := git.GetChangeSummary()
+	if len(changes) == 0 {
 		state = SaveStateNoChanges
 	}
 
 	return SaveModel{
 		textInput: ti,
 		state:     state,
+		changes:   changes,
 	}
 }
 
@@ -118,6 +123,9 @@ func (m SaveModel) View() string {
 		s += HelpText("Press any key to go back")
 
 	case SaveStateInput:
+		// Show changes summary
+		s += RenderSubtitle("Changes to be saved:") + "\n\n"
+		s += m.renderChanges() + "\n"
 		s += RenderSubtitle("Describe what you worked on:") + "\n\n"
 		s += m.textInput.View() + "\n\n"
 		s += HelpText("enter: save • esc: cancel")
@@ -144,5 +152,71 @@ func (m SaveModel) View() string {
 // IsDone returns true if the save flow is complete
 func (m SaveModel) IsDone() bool {
 	return m.state == SaveStateSuccess || m.state == SaveStateError || m.state == SaveStateNoChanges
+}
+
+// renderChanges renders the list of changed files
+func (m SaveModel) renderChanges() string {
+	var s string
+
+	// Count by type
+	added, modified, deleted := 0, 0, 0
+	for _, c := range m.changes {
+		switch c.Status {
+		case "added":
+			added++
+		case "deleted":
+			deleted++
+		default:
+			modified++
+		}
+	}
+
+	// Summary line
+	var parts []string
+	if added > 0 {
+		parts = append(parts, SuccessStyle.Render(fmt.Sprintf("+%d added", added)))
+	}
+	if modified > 0 {
+		parts = append(parts, HighlightStyle.Render(fmt.Sprintf("~%d modified", modified)))
+	}
+	if deleted > 0 {
+		parts = append(parts, ErrorStyle.Render(fmt.Sprintf("-%d deleted", deleted)))
+	}
+
+	for i, part := range parts {
+		if i > 0 {
+			s += "  "
+		}
+		s += part
+	}
+	s += "\n\n"
+
+	// File list (show up to 8 files)
+	maxFiles := 8
+	for i, c := range m.changes {
+		if i >= maxFiles {
+			remaining := len(m.changes) - maxFiles
+			s += MutedStyle.Render(fmt.Sprintf("  ... and %d more files\n", remaining))
+			break
+		}
+
+		var icon string
+		var style lipgloss.Style
+		switch c.Status {
+		case "added":
+			icon = "+"
+			style = SuccessStyle
+		case "deleted":
+			icon = "-"
+			style = ErrorStyle
+		default:
+			icon = "~"
+			style = HighlightStyle
+		}
+
+		s += fmt.Sprintf("  %s %s\n", style.Render(icon), MutedStyle.Render(c.Path))
+	}
+
+	return s
 }
 

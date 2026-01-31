@@ -104,6 +104,54 @@ func HasChanges() bool {
 	return output != ""
 }
 
+// FileChange represents a changed file
+type FileChange struct {
+	Status string // "added", "modified", "deleted", "renamed"
+	Path   string
+}
+
+// GetChangeSummary returns a summary of all changed files
+func GetChangeSummary() ([]FileChange, error) {
+	output, err := Run("status", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+
+	if output == "" {
+		return []FileChange{}, nil
+	}
+
+	var changes []FileChange
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if len(line) < 3 {
+			continue
+		}
+
+		statusCode := line[:2]
+		path := strings.TrimSpace(line[2:])
+
+		var status string
+		switch {
+		case statusCode[0] == 'A' || statusCode[1] == 'A' || statusCode == "??":
+			status = "added"
+		case statusCode[0] == 'D' || statusCode[1] == 'D':
+			status = "deleted"
+		case statusCode[0] == 'R' || statusCode[1] == 'R':
+			status = "renamed"
+		default:
+			status = "modified"
+		}
+
+		changes = append(changes, FileChange{
+			Status: status,
+			Path:   path,
+		})
+	}
+
+	return changes, nil
+}
+
 // LastCommitMessage returns the message of the last commit
 func LastCommitMessage() (string, error) {
 	return Run("log", "-1", "--format=%s")
