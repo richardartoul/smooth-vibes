@@ -32,13 +32,14 @@ type FileSelection struct {
 
 // SaveModel is the model for the save flow
 type SaveModel struct {
-	textInput        textinput.Model
-	state            SaveState
-	err              error
-	files            []FileSelection
-	cursor           int
-	gitignoreFile    string // file being considered for gitignore
-	gitignoreIdx     int    // index of that file
+	textInput         textinput.Model
+	state             SaveState
+	err               error
+	files             []FileSelection
+	cursor            int
+	gitignoreFile     string // file being considered for gitignore
+	gitignoreIdx      int    // index of that file
+	gitignoreModified bool   // whether we added something to .gitignore
 }
 
 // NewSaveModel creates a new save model
@@ -109,6 +110,10 @@ func (m SaveModel) getSelectedFiles() []string {
 			paths = append(paths, f.Change.Path)
 		}
 	}
+	// Include .gitignore if we modified it
+	if m.gitignoreModified {
+		paths = append(paths, ".gitignore")
+	}
 	return paths
 }
 
@@ -171,6 +176,7 @@ func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 			case "y", "Y":
 				// Add to gitignore
 				git.AddToGitignore(m.gitignoreFile)
+				m.gitignoreModified = true
 				m.state = SaveStateReview
 			case "n", "N", "esc":
 				m.state = SaveStateReview
