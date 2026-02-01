@@ -82,6 +82,8 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 		} else {
 			m.state = SettingsStateSaved
 			m.dirty = false
+			// Apply theme now that it's saved
+			ApplyTheme(config.GetTheme(m.cfg.Theme))
 			// If we were saving before exit, mark exit now
 			if m.wantsExit {
 				return m, nil
@@ -121,14 +123,12 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 				if m.cursor == 3 {
 					m.cfg.Theme = nextTheme(m.cfg.Theme)
 					m.dirty = true
-					ApplyTheme(config.GetTheme(m.cfg.Theme))
 				}
 			case msg.String() == "left":
 				// Left arrow cycles theme backward
 				if m.cursor == 3 {
 					m.cfg.Theme = prevTheme(m.cfg.Theme)
 					m.dirty = true
-					ApplyTheme(config.GetTheme(m.cfg.Theme))
 				}
 			case msg.String() == "s":
 				// Save settings
@@ -200,6 +200,11 @@ func (m SettingsModel) View() string {
 	switch m.state {
 	case SettingsStateMenu:
 		s += m.renderSettingsList() + "\n"
+
+		// Show theme preview when hovering over theme option
+		if m.cursor == 3 {
+			s += m.renderThemePreview() + "\n"
+		}
 
 		if m.dirty {
 			s += HighlightStyle.Render("• Unsaved changes") + "\n\n"
@@ -339,6 +344,44 @@ func prevTheme(current string) string {
 		}
 	}
 	return config.ThemeNames[0]
+}
+
+// renderThemePreview renders a preview of the selected theme's colors
+func (m SettingsModel) renderThemePreview() string {
+	theme := config.GetTheme(m.cfg.Theme)
+
+	// Create styles using the theme colors directly
+	primaryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary)).Bold(true)
+	secondaryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Secondary))
+	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent)).Bold(true)
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Success)).Bold(true)
+	dangerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Danger)).Bold(true)
+	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
+	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Text))
+	highlightStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Highlight)).Bold(true)
+
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(theme.Secondary)).
+		Padding(0, 1)
+
+	var preview string
+	preview += primaryStyle.Render("■") + " Primary   "
+	preview += secondaryStyle.Render("■") + " Secondary   "
+	preview += accentStyle.Render("■") + " Accent\n"
+	preview += successStyle.Render("■") + " Success   "
+	preview += dangerStyle.Render("■") + " Danger     "
+	preview += highlightStyle.Render("■") + " Highlight\n"
+	preview += mutedStyle.Render("■") + " Muted     "
+	preview += textStyle.Render("■") + " Text\n\n"
+	preview += primaryStyle.Render("Title Text") + "  "
+	preview += secondaryStyle.Render("Subtitle") + "\n"
+	preview += accentStyle.Render("> Selected item") + "\n"
+	preview += successStyle.Render("✓ Success!") + "  "
+	preview += dangerStyle.Render("✗ Error") + "\n"
+	preview += mutedStyle.Render("Muted helper text")
+
+	return boxStyle.Render(preview) + "\n"
 }
 
 // IsDone returns true if the settings screen should close
