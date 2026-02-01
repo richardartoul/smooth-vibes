@@ -114,11 +114,7 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 				case 2: // Experiments toggle
 					m.cfg.ExperimentsEnabled = !m.cfg.ExperimentsEnabled
 					m.dirty = true
-				case 3: // Theme - cycle to next
-					m.cfg.Theme = nextTheme(m.cfg.Theme)
-					m.dirty = true
-					// Apply theme immediately for preview
-					ApplyTheme(config.GetTheme(m.cfg.Theme))
+					// case 3 (Theme) - do nothing on enter/space, use arrows only
 				}
 			case msg.String() == "right":
 				// Right arrow cycles theme forward
@@ -208,13 +204,13 @@ func (m SettingsModel) View() string {
 		if m.dirty {
 			s += HighlightStyle.Render("• Unsaved changes") + "\n\n"
 			if m.cursor == 3 {
-				s += HelpText("↑/↓: navigate • ←/→: cycle theme • enter: toggle • s: save • esc: back")
+				s += HelpText("↑/↓: navigate • ←/→: cycle theme • s: save • esc: back")
 			} else {
 				s += HelpText("↑/↓: navigate • enter: toggle • s: save • esc: back")
 			}
 		} else {
 			if m.cursor == 3 {
-				s += HelpText("↑/↓: navigate • ←/→: cycle theme • enter: toggle • esc: back")
+				s += HelpText("↑/↓: navigate • ←/→: cycle theme • esc: back")
 			} else {
 				s += HelpText("↑/↓: navigate • enter: toggle • esc: back")
 			}
@@ -292,7 +288,18 @@ func (m SettingsModel) renderSettingsList() string {
 		// Setting name and value
 		nameStr := style.Render(setting.name)
 		valueStr := HighlightStyle.Render(setting.value)
-		s += fmt.Sprintf("%s%s: %s\n", cursor, nameStr, valueStr)
+
+		// Theme setting gets arrow indicators
+		if i == 3 { // Theme
+			if m.cursor == i {
+				// Show arrows when selected
+				s += fmt.Sprintf("%s%s: ← %s →\n", cursor, nameStr, valueStr)
+			} else {
+				s += fmt.Sprintf("%s%s: %s\n", cursor, nameStr, valueStr)
+			}
+		} else {
+			s += fmt.Sprintf("%s%s: %s\n", cursor, nameStr, valueStr)
+		}
 
 		// Description
 		s += "    " + MutedStyle.Render(setting.description) + "\n\n"
