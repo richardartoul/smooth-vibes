@@ -94,7 +94,7 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 					m.cursor--
 				}
 			case key.Matches(msg, keys.Down):
-				if m.cursor < 1 { // 2 settings
+				if m.cursor < 2 { // 3 settings
 					m.cursor++
 				}
 			case key.Matches(msg, keys.Enter), msg.String() == " ":
@@ -107,6 +107,9 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 					m.textInput.SetValue(fmt.Sprintf("%d", m.cfg.MaxBackups))
 					m.textInput.Focus()
 					return m, textinput.Blink
+				case 2: // Experiments toggle
+					m.cfg.ExperimentsEnabled = !m.cfg.ExperimentsEnabled
+					m.dirty = true
 				}
 			case msg.String() == "s":
 				// Save settings
@@ -229,6 +232,11 @@ func (m SettingsModel) renderSettingsList() string {
 			description: "Number of backups to keep per branch",
 			value:       fmt.Sprintf("%d", m.cfg.MaxBackups),
 		},
+		{
+			name:        "Experiments feature",
+			description: "Enable experimental branches for trying new ideas",
+			value:       formatBool(m.cfg.ExperimentsEnabled),
+		},
 	}
 
 	for i, setting := range settings {
@@ -265,9 +273,9 @@ func (m SettingsModel) IsDone() bool {
 	return false // Settings screen doesn't auto-close
 }
 
-// WantsBack returns true if user wants to go back (only when not dirty or confirmed)
+// WantsBack returns true if user confirmed they want to go back
 func (m SettingsModel) WantsBack() bool {
-	return m.wantsExit || (m.state == SettingsStateMenu && !m.dirty)
+	return m.wantsExit
 }
 
 // HasUnsavedChanges returns true if there are unsaved changes
@@ -281,4 +289,3 @@ func (m *SettingsModel) PromptExit() {
 		m.state = SettingsStateConfirmExit
 	}
 }
-

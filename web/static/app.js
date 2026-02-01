@@ -8,8 +8,19 @@ let originalConfig = null;
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     refreshStatus();
+    loadInitialConfig();
     setInterval(refreshStatus, 5000); // Poll every 5 seconds
 });
+
+// Load config on startup to set initial UI state
+async function loadInitialConfig() {
+    try {
+        const cfg = await api('/config');
+        updateExperimentsVisibility(cfg.experimentsEnabled);
+    } catch (e) {
+        console.error('Failed to load initial config:', e);
+    }
+}
 
 // API helpers
 async function api(endpoint, options = {}) {
@@ -394,12 +405,22 @@ async function loadConfig() {
         const cfg = await api('/config');
         document.getElementById('autoSyncToggle').checked = cfg.autoSyncEnabled;
         document.getElementById('maxBackupsInput').value = cfg.maxBackups;
+        document.getElementById('experimentsToggle').checked = cfg.experimentsEnabled;
         // Store original values to detect changes
         originalConfig = { ...cfg };
         settingsDirty = false;
+        // Update UI visibility based on experiments setting
+        updateExperimentsVisibility(cfg.experimentsEnabled);
     } catch (e) {
         console.error('Failed to load config:', e);
         showToast('Failed to load settings', 'error');
+    }
+}
+
+function updateExperimentsVisibility(enabled) {
+    const experimentsBtn = document.querySelector('.menu-btn[onclick="showPanel(\'experimentsPanel\')"]');
+    if (experimentsBtn) {
+        experimentsBtn.classList.toggle('hidden', !enabled);
     }
 }
 
@@ -407,23 +428,28 @@ function checkSettingsDirty() {
     if (!originalConfig) return false;
     const autoSyncEnabled = document.getElementById('autoSyncToggle').checked;
     const maxBackups = parseInt(document.getElementById('maxBackupsInput').value) || 10;
+    const experimentsEnabled = document.getElementById('experimentsToggle').checked;
     settingsDirty = (autoSyncEnabled !== originalConfig.autoSyncEnabled) || 
-                    (maxBackups !== originalConfig.maxBackups);
+                    (maxBackups !== originalConfig.maxBackups) ||
+                    (experimentsEnabled !== originalConfig.experimentsEnabled);
     return settingsDirty;
 }
 
 async function updateConfig() {
     const autoSyncEnabled = document.getElementById('autoSyncToggle').checked;
     const maxBackups = parseInt(document.getElementById('maxBackupsInput').value) || 10;
+    const experimentsEnabled = document.getElementById('experimentsToggle').checked;
     
     try {
         const cfg = await api('/config', {
             method: 'POST',
-            body: JSON.stringify({ autoSyncEnabled, maxBackups })
+            body: JSON.stringify({ autoSyncEnabled, maxBackups, experimentsEnabled })
         });
         // Update original config after successful save
         originalConfig = { ...cfg };
         settingsDirty = false;
+        // Update UI visibility based on experiments setting
+        updateExperimentsVisibility(cfg.experimentsEnabled);
         showToast('Settings saved', 'success');
     } catch (e) {
         showToast('Failed to save settings: ' + e.message, 'error');

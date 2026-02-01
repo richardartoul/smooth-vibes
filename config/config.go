@@ -8,15 +8,17 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	AutoSyncEnabled bool `json:"autoSyncEnabled"`
-	MaxBackups      int  `json:"maxBackups"`
+	AutoSyncEnabled    bool `json:"autoSyncEnabled"`
+	MaxBackups         int  `json:"maxBackups"`
+	ExperimentsEnabled bool `json:"experimentsEnabled"`
 }
 
 // DefaultConfig returns a config with default values
 func DefaultConfig() Config {
 	return Config{
-		AutoSyncEnabled: false,
-		MaxBackups:      10,
+		AutoSyncEnabled:    false,
+		MaxBackups:         10,
+		ExperimentsEnabled: true,
 	}
 }
 
@@ -78,4 +80,3 @@ func Save(cfg Config) error {
 
 	return os.WriteFile(path, data, 0644)
 }
-

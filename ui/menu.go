@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"vc/config"
 	"vc/git"
 )
 
@@ -122,11 +123,21 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 			Description: "Restore from automatic backups created during reverts",
 			Action:      ActionBackups,
 		},
-		MenuItem{
-			Title:       "Experiments (advanced)",
-			Description: "Try new ideas without breaking your main work",
-			Action:      ActionExperiments,
-		},
+	)
+
+	// Only show experiments if enabled in config
+	cfg, _ := config.Load()
+	if cfg.ExperimentsEnabled {
+		items = append(items,
+			MenuItem{
+				Title:       "Experiments (advanced)",
+				Description: "Try new ideas without breaking your main work",
+				Action:      ActionExperiments,
+			},
+		)
+	}
+
+	items = append(items,
 		MenuItem{
 			Title:       "Sync to GitHub",
 			Description: "Upload your saves to the cloud",

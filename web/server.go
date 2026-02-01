@@ -378,8 +378,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	case "POST":
 		var req struct {
-			AutoSyncEnabled *bool `json:"autoSyncEnabled,omitempty"`
-			MaxBackups      *int  `json:"maxBackups,omitempty"`
+			AutoSyncEnabled    *bool `json:"autoSyncEnabled,omitempty"`
+			MaxBackups         *int  `json:"maxBackups,omitempty"`
+			ExperimentsEnabled *bool `json:"experimentsEnabled,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			errorResponse(w, "Invalid request", 400)
@@ -406,6 +407,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 				val = 1000
 			}
 			cfg.MaxBackups = val
+		}
+		if req.ExperimentsEnabled != nil {
+			cfg.ExperimentsEnabled = *req.ExperimentsEnabled
 		}
 
 		// Save updated config
