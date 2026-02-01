@@ -9,6 +9,7 @@ import (
 
 	"vc/git"
 	"vc/ui"
+	"vc/web"
 )
 
 // AppState represents the current state of the application.
@@ -209,6 +210,28 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check for subcommands
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "web":
+			port := 3000
+			if err := web.StartServer(port); err != nil {
+				fmt.Printf("Error starting web server: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "help", "--help", "-h":
+			fmt.Println("smooth - Version control for vibe coders")
+			fmt.Println()
+			fmt.Println("Usage:")
+			fmt.Println("  vibevc       Start the TUI interface")
+			fmt.Println("  vibevc web   Start the web interface (http://localhost:3000)")
+			fmt.Println("  vibevc help  Show this help message")
+			return
+		}
+	}
+
+	// Default: run TUI
 	p := tea.NewProgram(NewModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)

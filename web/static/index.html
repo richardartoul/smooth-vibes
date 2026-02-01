@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smooth - Version Control for Vibe Coders</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <h1 class="logo">SMOOTH</h1>
+            <div class="status-bar">
+                <span class="branch-badge" id="branchBadge">main</span>
+                <span class="changes-badge hidden" id="changesBadge">unsaved changes</span>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- Main Menu -->
+            <section class="panel" id="menuPanel">
+                <h2>What would you like to do?</h2>
+                <div class="menu-grid">
+                    <button class="menu-btn primary" onclick="showPanel('savePanel')">
+                        <span class="menu-icon">💾</span>
+                        <span class="menu-title">Save Progress</span>
+                        <span class="menu-desc">Create a save point</span>
+                    </button>
+                    <button class="menu-btn" onclick="showPanel('restorePanel')">
+                        <span class="menu-icon">⏪</span>
+                        <span class="menu-title">Go Back</span>
+                        <span class="menu-desc">Restore previous state</span>
+                    </button>
+                    <button class="menu-btn experiment-only hidden" id="keepBtn" onclick="keepExperiment()">
+                        <span class="menu-icon">✅</span>
+                        <span class="menu-title">Keep Experiment</span>
+                        <span class="menu-desc">Merge into main</span>
+                    </button>
+                    <button class="menu-btn experiment-only hidden" id="abandonBtn" onclick="abandonExperiment()">
+                        <span class="menu-icon">🗑️</span>
+                        <span class="menu-title">Abandon</span>
+                        <span class="menu-desc">Discard experiment</span>
+                    </button>
+                    <button class="menu-btn" onclick="showPanel('backupsPanel')">
+                        <span class="menu-icon">📦</span>
+                        <span class="menu-title">Backups</span>
+                        <span class="menu-desc">Restore from backup</span>
+                    </button>
+                    <button class="menu-btn" onclick="showPanel('experimentsPanel')">
+                        <span class="menu-icon">🧪</span>
+                        <span class="menu-title">Experiments</span>
+                        <span class="menu-desc">Try new ideas safely</span>
+                    </button>
+                    <button class="menu-btn" onclick="syncToGitHub()">
+                        <span class="menu-icon">☁️</span>
+                        <span class="menu-title">Sync to GitHub</span>
+                        <span class="menu-desc">Upload your saves</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Save Panel -->
+            <section class="panel hidden" id="savePanel">
+                <button class="back-btn" onclick="showPanel('menuPanel')">← Back</button>
+                <h2>Save Progress</h2>
+                
+                <div class="file-list" id="fileList">
+                    <p class="loading">Loading changes...</p>
+                </div>
+
+                <div class="save-form">
+                    <label for="commitMessage">What did you work on?</label>
+                    <input type="text" id="commitMessage" placeholder="Describe your changes..." maxlength="100">
+                    <button class="action-btn" onclick="saveProgress()">Save</button>
+                </div>
+            </section>
+
+            <!-- Restore Panel -->
+            <section class="panel hidden" id="restorePanel">
+                <button class="back-btn" onclick="showPanel('menuPanel')">← Back</button>
+                <h2>Go Back to Previous State</h2>
+                <p class="panel-desc">Select a save point to restore. A backup will be created automatically.</p>
+                
+                <div class="commit-list" id="commitList">
+                    <p class="loading">Loading save points...</p>
+                </div>
+            </section>
+
+            <!-- Backups Panel -->
+            <section class="panel hidden" id="backupsPanel">
+                <button class="back-btn" onclick="showPanel('menuPanel')">← Back</button>
+                <h2>Backups</h2>
+                <p class="panel-desc">Backups are created automatically when you restore to a previous state.</p>
+                
+                <div class="backup-list" id="backupList">
+                    <p class="loading">Loading backups...</p>
+                </div>
+            </section>
+
+            <!-- Experiments Panel -->
+            <section class="panel hidden" id="experimentsPanel">
+                <button class="back-btn" onclick="showPanel('menuPanel')">← Back</button>
+                <h2>Experiments</h2>
+                <p class="panel-desc">Try new ideas without breaking your main work.</p>
+
+                <div class="experiment-actions">
+                    <div class="new-experiment">
+                        <input type="text" id="experimentName" placeholder="my-cool-idea">
+                        <button class="action-btn" onclick="createExperiment()">Start New Experiment</button>
+                    </div>
+                </div>
+
+                <h3>Your Experiments</h3>
+                <div class="experiment-list" id="experimentList">
+                    <p class="loading">Loading experiments...</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Toast notifications -->
+        <div class="toast hidden" id="toast"></div>
+
+        <!-- Loading overlay -->
+        <div class="loading-overlay hidden" id="loadingOverlay">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Confirm modal -->
+        <div class="modal hidden" id="confirmModal">
+            <div class="modal-content">
+                <h3 id="confirmTitle">Confirm</h3>
+                <p id="confirmMessage">Are you sure?</p>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn-danger" id="confirmBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
