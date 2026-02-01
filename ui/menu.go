@@ -104,6 +104,11 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 
 	items := []MenuItem{
 		{
+			Title:       "Quicksave",
+			Description: "Save everything instantly with no prompts",
+			Action:      ActionQuicksave,
+		},
+		{
 			Title:       saveTitle,
 			Description: saveDesc,
 			Action:      ActionSave,
@@ -112,11 +117,6 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 			Title:       saveTitle + " (v2)",
 			Description: "Experimental: choose save/revert/skip/ignore per file",
 			Action:      ActionSaveV2,
-		},
-		{
-			Title:       "Quicksave",
-			Description: "Save everything instantly with no prompts",
-			Action:      ActionQuicksave,
 		},
 		{
 			Title:       revertTitle,
