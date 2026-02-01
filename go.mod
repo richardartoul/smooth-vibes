@@ -1,4 +1,4 @@
-module vc
+module smooth
 
 go 1.25.5
 

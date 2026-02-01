@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vc/git"
+	"smooth/git"
 )
 
 // SyncState represents the state of the sync flow

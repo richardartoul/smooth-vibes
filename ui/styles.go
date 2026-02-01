@@ -3,7 +3,7 @@ package ui
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"vc/config"
+	"smooth/config"
 )
 
 // Color variables - updated by ApplyTheme

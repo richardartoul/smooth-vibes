@@ -7,8 +7,8 @@ import (
 	"io/fs"
 	"net/http"
 
-	"vc/config"
-	"vc/git"
+	"smooth/config"
+	"smooth/git"
 )
 
 //go:embed static/*

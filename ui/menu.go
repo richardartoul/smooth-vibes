@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vc/config"
-	"vc/git"
+	"smooth/config"
+	"smooth/git"
 )
 
 // tickMsg is sent periodically to refresh the menu

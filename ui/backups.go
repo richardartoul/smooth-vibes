@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"vc/git"
+	"smooth/git"
 )
 
 // BackupsState represents the state of the backups flow

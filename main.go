@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"vc/git"
-	"vc/ui"
-	"vc/web"
+	"smooth/git"
+	"smooth/ui"
+	"smooth/web"
 )
 
 // AppState represents the current state of the application.
@@ -375,10 +375,10 @@ func main() {
 			fmt.Println("smooth - Version control for vibe coders")
 			fmt.Println()
 			fmt.Println("Usage:")
-			fmt.Println("  vibevc              Start the TUI interface")
-			fmt.Println("  vibevc web          Start the web interface (http://localhost:3000)")
-			fmt.Println("  vibevc gen-test-data Generate hundreds of garbage files for stress testing")
-			fmt.Println("  vibevc help         Show this help message")
+			fmt.Println("  smooth              Start the TUI interface")
+			fmt.Println("  smooth web          Start the web interface (http://localhost:3000)")
+			fmt.Println("  smooth gen-test-data Generate hundreds of garbage files for stress testing")
+			fmt.Println("  smooth help         Show this help message")
 			return
 		}
 	}

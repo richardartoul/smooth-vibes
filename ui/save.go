@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vc/config"
-	"vc/git"
+	"smooth/config"
+	"smooth/git"
 )
 
 // SaveState represents the state of the save flow

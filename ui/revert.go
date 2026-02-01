@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"vc/config"
-	"vc/git"
+	"smooth/config"
+	"smooth/git"
 )
 
 // RevertState represents the state of the revert flow

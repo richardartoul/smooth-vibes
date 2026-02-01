@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vc/git"
+	"smooth/git"
 )
 
 // ExperimentsState represents the state of the experiments flow
