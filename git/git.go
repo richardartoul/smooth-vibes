@@ -221,10 +221,11 @@ func GetDiff() string {
 			maxWidth = 20
 		}
 
-		// Format untracked files to match alignment
+		// Format untracked files to match alignment, with line count
 		var untracked []string
 		for _, f := range untrackedFiles {
-			untracked = append(untracked, fmt.Sprintf(" %-*s | new file", maxWidth-1, f))
+			lineCount := countFileLines(f)
+			untracked = append(untracked, fmt.Sprintf(" %-*s | %d (new file)", maxWidth-1, f, lineCount))
 		}
 
 		if result != "" {
@@ -280,6 +281,23 @@ func updateSummaryLine(line string, newFiles int) string {
 		rest = "files " + strings.TrimPrefix(rest, "file ")
 	}
 	return fmt.Sprintf(" %d %s", newCount, rest)
+}
+
+// countFileLines counts the number of lines in a file
+func countFileLines(filepath string) int {
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		return 0
+	}
+	if len(data) == 0 {
+		return 0
+	}
+	count := strings.Count(string(data), "\n")
+	// If file doesn't end with newline, add 1
+	if data[len(data)-1] != '\n' {
+		count++
+	}
+	return count
 }
 
 // GetDiffFull returns the full diff output (not just stats)

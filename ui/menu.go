@@ -344,9 +344,9 @@ func (m MenuModel) View() string {
 			} else {
 				rightContent += HighlightStyle.Render(displayLine) + "\n"
 			}
-		} else if strings.Contains(line, "| new file") {
-			// Untracked files formatted like diff stats
-			rightContent += SuccessStyle.Render(displayLine) + "\n"
+		} else if strings.Contains(line, "(new file)") {
+			// Untracked files formatted like diff stats - same color as other files
+			rightContent += MutedStyle.Render(displayLine) + "\n"
 		} else {
 			rightContent += MutedStyle.Render(displayLine) + "\n"
 		}
