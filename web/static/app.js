@@ -357,10 +357,31 @@ async function switchExperiment(branch) {
 }
 
 // Sync
-async function syncToGitHub() {
+async function syncToGitHub(remoteUrl = null) {
     showLoading(true);
     try {
-        await api('/sync', { method: 'POST' });
+        const body = remoteUrl ? { remoteUrl } : {};
+        const result = await api('/sync', { 
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+        
+        // Check if we need to set up a remote
+        if (result.needsRemote) {
+            showLoading(false);
+            showPrompt(
+                'Set up GitHub',
+                'Enter your GitHub repository SSH URL (click Code → SSH on GitHub):',
+                'git@github.com:username/repo.git',
+                async (url) => {
+                    if (url) {
+                        await syncToGitHub(url);
+                    }
+                }
+            );
+            return;
+        }
+        
         showToast('Synced to GitHub!', 'success');
     } catch (e) {
         showToast(e.message, 'error');
@@ -384,6 +405,9 @@ function showConfirm(title, message, onConfirm) {
     const modal = document.getElementById('confirmModal');
     document.getElementById('confirmTitle').textContent = title;
     document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmInput').classList.add('hidden');
+    document.getElementById('confirmBtn').textContent = 'Confirm';
+    document.getElementById('confirmBtn').className = 'btn-danger';
     
     const confirmBtn = document.getElementById('confirmBtn');
     confirmBtn.onclick = () => {
@@ -392,6 +416,31 @@ function showConfirm(title, message, onConfirm) {
     };
     
     modal.classList.remove('hidden');
+}
+
+function showPrompt(title, message, placeholder, onSubmit) {
+    const modal = document.getElementById('confirmModal');
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    
+    const input = document.getElementById('confirmInput');
+    input.classList.remove('hidden');
+    input.placeholder = placeholder;
+    input.value = '';
+    input.focus();
+    
+    document.getElementById('confirmBtn').textContent = 'Save & Sync';
+    document.getElementById('confirmBtn').className = 'action-btn';
+    
+    const confirmBtn = document.getElementById('confirmBtn');
+    confirmBtn.onclick = () => {
+        const value = input.value.trim();
+        closeModal();
+        onSubmit(value);
+    };
+    
+    modal.classList.remove('hidden');
+    setTimeout(() => input.focus(), 100);
 }
 
 function closeModal() {

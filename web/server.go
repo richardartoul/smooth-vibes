@@ -115,12 +115,29 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := git.Push(); err != nil {
-		// Check for no remote error
-		if _, ok := err.(git.NoRemoteError); ok {
-			errorResponse(w, "No GitHub remote configured. Create a repo on GitHub, then run: git remote add origin https://github.com/USERNAME/REPO.git", 400)
+	// Check if request includes a remote URL to set up first
+	var req struct {
+		RemoteURL string `json:"remoteUrl,omitempty"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	// If no remote exists and URL provided, add it
+	if !git.HasRemote() {
+		if req.RemoteURL == "" {
+			jsonResponse(w, map[string]interface{}{
+				"needsRemote": true,
+				"message":     "No GitHub remote configured. Please provide a repository URL.",
+			})
 			return
 		}
+		// Add the remote
+		if err := git.AddOrigin(req.RemoteURL); err != nil {
+			errorResponse(w, "Failed to add remote: "+err.Error(), 500)
+			return
+		}
+	}
+
+	if err := git.Push(); err != nil {
 		errorResponse(w, err.Error(), 500)
 		return
 	}

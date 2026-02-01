@@ -1,9 +1,10 @@
 package ui
 
 import (
-	"errors"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -14,17 +15,20 @@ import (
 type SyncState int
 
 const (
-	SyncStateSyncing SyncState = iota
+	SyncStateChecking SyncState = iota
+	SyncStateNoRemote
+	SyncStateSyncing
 	SyncStateSuccess
 	SyncStateError
 )
 
 // SyncModel is the model for the sync flow
 type SyncModel struct {
-	spinner spinner.Model
-	state   SyncState
-	err     error
-	branch  string
+	spinner   spinner.Model
+	textInput textinput.Model
+	state     SyncState
+	err       error
+	branch    string
 }
 
 // NewSyncModel creates a new sync model
@@ -33,22 +37,45 @@ func NewSyncModel() SyncModel {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(ColorAccent)
 
+	ti := textinput.New()
+	ti.Placeholder = "git@github.com:username/repo.git"
+	ti.CharLimit = 200
+	ti.Width = 50
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorAccent)
+	ti.TextStyle = lipgloss.NewStyle().Foreground(ColorText)
+
 	branch, _ := git.CurrentBranch()
 
+	// Check if remote exists
+	state := SyncStateChecking
+	if !git.HasRemote() {
+		state = SyncStateNoRemote
+		ti.Focus()
+	}
+
 	return SyncModel{
-		spinner: s,
-		state:   SyncStateSyncing,
-		branch:  branch,
+		spinner:   s,
+		textInput: ti,
+		state:     state,
+		branch:    branch,
 	}
 }
 
 // Init initializes the sync model
 func (m SyncModel) Init() tea.Cmd {
+	if m.state == SyncStateNoRemote {
+		return textinput.Blink
+	}
 	return tea.Batch(m.spinner.Tick, doSync())
 }
 
 // SyncMsg is sent when a sync operation completes
 type SyncMsg struct {
+	Err error
+}
+
+// AddRemoteMsg is sent when adding a remote completes
+type AddRemoteMsg struct {
 	Err error
 }
 
@@ -60,9 +87,28 @@ func doSync() tea.Cmd {
 	}
 }
 
+// doAddRemote adds the origin remote
+func doAddRemote(url string) tea.Cmd {
+	return func() tea.Msg {
+		err := git.AddOrigin(url)
+		return AddRemoteMsg{Err: err}
+	}
+}
+
 // Update handles messages for the sync model
 func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case AddRemoteMsg:
+		if msg.Err != nil {
+			m.state = SyncStateError
+			m.err = msg.Err
+		} else {
+			// Remote added, now sync
+			m.state = SyncStateSyncing
+			return m, tea.Batch(m.spinner.Tick, doSync())
+		}
+		return m, nil
+
 	case SyncMsg:
 		if msg.Err != nil {
 			m.state = SyncStateError
@@ -73,10 +119,26 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 		return m, nil
 
 	case spinner.TickMsg:
-		if m.state == SyncStateSyncing {
+		if m.state == SyncStateSyncing || m.state == SyncStateChecking {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
+		}
+
+	case tea.KeyMsg:
+		if m.state == SyncStateNoRemote {
+			switch msg.String() {
+			case "enter":
+				url := strings.TrimSpace(m.textInput.Value())
+				if url != "" {
+					m.state = SyncStateSyncing
+					return m, tea.Batch(m.spinner.Tick, doAddRemote(url))
+				}
+			default:
+				var cmd tea.Cmd
+				m.textInput, cmd = m.textInput.Update(msg)
+				return m, cmd
+			}
 		}
 	}
 
@@ -90,6 +152,20 @@ func (m SyncModel) View() string {
 	s += RenderTitle("Sync to GitHub") + "\n\n"
 
 	switch m.state {
+	case SyncStateChecking:
+		s += m.spinner.View() + " " + RenderHighlight("Checking...") + "\n"
+
+	case SyncStateNoRemote:
+		s += RenderSubtitle("No GitHub remote configured") + "\n\n"
+		s += RenderMuted("Enter your GitHub repository SSH URL:") + "\n\n"
+		s += m.textInput.View() + "\n\n"
+		s += RenderMuted("To get this URL:") + "\n"
+		s += RenderMuted("  1. Go to github.com and create a new repository") + "\n"
+		s += RenderMuted("  2. Click the green 'Code' button") + "\n"
+		s += RenderMuted("  3. Select 'SSH' and copy the URL") + "\n"
+		s += RenderMuted("     (looks like git@github.com:user/repo.git)") + "\n\n"
+		s += HelpText("enter: save and sync • esc: cancel")
+
 	case SyncStateSyncing:
 		s += m.spinner.View() + " " + RenderHighlight("Syncing...") + "\n\n"
 		s += RenderMuted("Uploading your saves to GitHub...") + "\n"
@@ -100,24 +176,12 @@ func (m SyncModel) View() string {
 		s += HelpText("Press any key to continue")
 
 	case SyncStateError:
-		// Check if it's a "no remote" error
-		var noRemoteErr git.NoRemoteError
-		if errors.As(m.err, &noRemoteErr) {
-			s += RenderError("✗ No GitHub remote configured") + "\n\n"
-			s += RenderSubtitle("To set one up:") + "\n\n"
-			s += "  1. Create a repository on GitHub\n"
-			s += "  2. Run this command:\n\n"
-			s += HighlightStyle.Render("     git remote add origin https://github.com/USERNAME/REPO.git") + "\n\n"
-			s += "  3. Try syncing again\n\n"
-		} else {
-			s += RenderError("✗ Sync failed") + "\n\n"
-			if m.err != nil {
-				s += RenderMuted(m.err.Error()) + "\n\n"
-			}
-			// Only mention internet if we know remote exists
-			if git.HasRemote() {
-				s += RenderMuted("Make sure you have an internet connection.") + "\n\n"
-			}
+		s += RenderError("✗ Sync failed") + "\n\n"
+		if m.err != nil {
+			s += RenderMuted(m.err.Error()) + "\n\n"
+		}
+		if git.HasRemote() {
+			s += RenderMuted("Make sure you have an internet connection.") + "\n\n"
 		}
 		s += HelpText("Press any key to go back")
 	}

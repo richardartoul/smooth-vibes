@@ -92,6 +92,17 @@ func GetRemoteURL() string {
 	return output
 }
 
+// AddRemote adds a remote with the given name and URL
+func AddRemote(name, url string) error {
+	_, err := Run("remote", "add", name, url)
+	return err
+}
+
+// AddOrigin adds the origin remote with the given URL
+func AddOrigin(url string) error {
+	return AddRemote("origin", url)
+}
+
 // NoRemoteError is returned when trying to push without a remote configured
 type NoRemoteError struct{}
 

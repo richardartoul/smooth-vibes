@@ -518,6 +518,24 @@ body {
     line-height: 1.6;
 }
 
+.modal-input {
+    width: 100%;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    margin-bottom: 1.5rem;
+}
+
+.modal-input:focus {
+    outline: none;
+    border-color: var(--accent-teal);
+    box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.1);
+}
+
 .modal-actions {
     display: flex;
     gap: 1rem;
