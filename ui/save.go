@@ -346,6 +346,10 @@ func (m SaveModel) View() string {
 
 	case SaveStateSuccess:
 		s := RenderTitle("Save") + "\n\n"
+
+		// Show the cute celebration cat!
+		s += RenderCelebrationCat() + "\n\n"
+
 		s += RenderSuccess("✓ Complete!") + "\n\n"
 
 		if m.savedCount > 0 {
