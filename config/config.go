@@ -18,7 +18,7 @@ func DefaultConfig() Config {
 	return Config{
 		AutoSyncEnabled:    false,
 		MaxBackups:         10,
-		ExperimentsEnabled: true,
+		ExperimentsEnabled: false,
 	}
 }
 

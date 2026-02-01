@@ -144,7 +144,14 @@ func (m RestoreModel) View() string {
 	case RestoreStateList:
 		s += RenderSubtitle("Select a save point to restore:") + "\n\n"
 
-		for i, commit := range m.commits {
+		maxVisible := 8
+		start := 0
+		if m.cursor >= maxVisible {
+			start = m.cursor - maxVisible + 1
+		}
+
+		for i := start; i < len(m.commits) && i < start+maxVisible; i++ {
+			commit := m.commits[i]
 			cursor := "  "
 			style := ListItemStyle
 
@@ -161,6 +168,10 @@ func (m RestoreModel) View() string {
 
 			s += cursor + style.Render(line) + "\n"
 			s += "    " + MutedStyle.Render(commit.Timestamp) + "\n\n"
+		}
+
+		if len(m.commits) > maxVisible {
+			s += MutedStyle.Render(fmt.Sprintf("  ... %d total saves\n", len(m.commits)))
 		}
 
 		s += HelpText("↑/↓: navigate • enter: select • esc: cancel")

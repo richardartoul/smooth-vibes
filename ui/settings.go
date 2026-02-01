@@ -82,6 +82,10 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 		} else {
 			m.state = SettingsStateSaved
 			m.dirty = false
+			// If we were saving before exit, mark exit now
+			if m.wantsExit {
+				return m, nil
+			}
 		}
 		return m, nil
 
@@ -142,8 +146,13 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 				return m, cmd
 			}
 
-		case SettingsStateSaved, SettingsStateError:
-			// Any key goes back to menu
+		case SettingsStateSaved:
+			// Any key goes back to main menu
+			m.wantsExit = true
+			return m, nil
+
+		case SettingsStateError:
+			// Any key goes back to settings menu
 			m.state = SettingsStateMenu
 			return m, nil
 

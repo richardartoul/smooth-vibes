@@ -316,19 +316,23 @@ func (m ExperimentsModel) Update(msg tea.Msg) (ExperimentsModel, tea.Cmd) {
 			}
 
 		case ExperimentsStateSwitchList:
+			// allOptions includes main + experiments
+			allOptionsLen := 1 + len(m.experiments)
 			switch {
 			case key.Matches(msg, keys.Up):
 				if m.expCursor > 0 {
 					m.expCursor--
 				}
 			case key.Matches(msg, keys.Down):
-				if m.expCursor < len(m.experiments)-1 {
+				if m.expCursor < allOptionsLen-1 {
 					m.expCursor++
 				}
 			case key.Matches(msg, keys.Enter):
-				if len(m.experiments) > 0 {
+				// Build allOptions to get the selected branch name
+				allOptions := append([]git.BranchInfo{{Name: git.GetMainBranch(), IsCurrent: m.isOnMain}}, m.experiments...)
+				if m.expCursor < len(allOptions) {
 					m.state = ExperimentsStateSwitching
-					return m, doSwitchExperiment(m.experiments[m.expCursor].Name)
+					return m, doSwitchExperiment(allOptions[m.expCursor].Name)
 				}
 			case msg.String() == "esc":
 				m.state = ExperimentsStateMenu
@@ -405,7 +409,14 @@ func (m ExperimentsModel) View() string {
 		// Also show main as an option
 		allOptions := append([]git.BranchInfo{{Name: git.GetMainBranch(), IsCurrent: m.isOnMain}}, m.experiments...)
 
-		for i, exp := range allOptions {
+		maxVisible := 10
+		start := 0
+		if m.expCursor >= maxVisible {
+			start = m.expCursor - maxVisible + 1
+		}
+
+		for i := start; i < len(allOptions) && i < start+maxVisible; i++ {
+			exp := allOptions[i]
 			cursor := "  "
 			style := ListItemStyle
 
@@ -420,6 +431,10 @@ func (m ExperimentsModel) View() string {
 			}
 
 			s += cursor + style.Render(label) + "\n\n"
+		}
+
+		if len(allOptions) > maxVisible {
+			s += MutedStyle.Render(fmt.Sprintf("  ... %d total branches\n", len(allOptions)))
 		}
 
 		s += HelpText("↑/↓: navigate • enter: switch • esc: back")

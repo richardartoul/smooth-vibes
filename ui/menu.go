@@ -233,7 +233,19 @@ func (m MenuModel) View() string {
 	// Menu items
 	// Hide descriptions if narrow OR short terminal
 	showDescriptions := m.width >= 60 && m.height >= 25
-	for i, item := range m.items {
+
+	// Calculate visible range for scrolling
+	maxVisible := 8
+	if !showDescriptions {
+		maxVisible = 12 // Can show more when not showing descriptions
+	}
+	start := 0
+	if m.cursor >= maxVisible {
+		start = m.cursor - maxVisible + 1
+	}
+
+	for i := start; i < len(m.items) && i < start+maxVisible; i++ {
+		item := m.items[i]
 		cursor := "  "
 		style := MenuItemStyle
 
@@ -249,6 +261,10 @@ func (m MenuModel) View() string {
 		} else {
 			leftContent += cursor + title + "\n"
 		}
+	}
+
+	if len(m.items) > maxVisible {
+		leftContent += MutedStyle.Render(fmt.Sprintf("  ... %d total items\n", len(m.items)))
 	}
 
 	// Help

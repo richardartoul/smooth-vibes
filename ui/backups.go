@@ -127,7 +127,14 @@ func (m BackupsModel) View() string {
 	case BackupsStateList:
 		s += RenderSubtitle("Select a backup to restore:") + "\n\n"
 
-		for i, backup := range m.backups {
+		maxVisible := 8
+		start := 0
+		if m.cursor >= maxVisible {
+			start = m.cursor - maxVisible + 1
+		}
+
+		for i := start; i < len(m.backups) && i < start+maxVisible; i++ {
+			backup := m.backups[i]
 			cursor := "  "
 			style := ListItemStyle
 
@@ -147,6 +154,10 @@ func (m BackupsModel) View() string {
 
 			s += cursor + style.Render(line) + "\n"
 			s += "    " + MutedStyle.Render(backup.CommitHash) + "\n\n"
+		}
+
+		if len(m.backups) > maxVisible {
+			s += MutedStyle.Render(fmt.Sprintf("  ... %d total backups\n", len(m.backups)))
 		}
 
 		s += HelpText("↑/↓: navigate • enter: restore • esc: cancel")
@@ -194,4 +205,3 @@ func formatBackupTimestamp(timestamp string) string {
 	}
 	return timestamp
 }
-
