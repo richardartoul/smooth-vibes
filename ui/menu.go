@@ -57,11 +57,28 @@ func NewMenuModel() MenuModel {
 
 // buildMenuItems creates the menu items based on current state
 func (m MenuModel) buildMenuItems() []MenuItem {
+	// Titles and descriptions change based on whether we're on an experiment
+	saveTitle := "Save my current progress"
+	saveDesc := "Create a save point of your current work"
+	restoreTitle := "Go back to a previous state"
+	restoreDesc := "Restore your project to an earlier save point"
+	if !m.isOnMain {
+		saveTitle = "Save my current progress (experiment)"
+		saveDesc = "Create a save point of your current work for this experiment"
+		restoreTitle = "Go back to a previous state (experiment)"
+		restoreDesc = "Restore your experiment to an earlier save point"
+	}
+
 	items := []MenuItem{
 		{
-			Title:       "Save my current progress",
-			Description: "Create a save point of your current work",
+			Title:       saveTitle,
+			Description: saveDesc,
 			Action:      ActionSave,
+		},
+		{
+			Title:       restoreTitle,
+			Description: restoreDesc,
+			Action:      ActionRestore,
 		},
 	}
 
@@ -82,11 +99,6 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 	}
 
 	items = append(items,
-		MenuItem{
-			Title:       "Go back to a previous state",
-			Description: "Restore your project to an earlier save point",
-			Action:      ActionRestore,
-		},
 		MenuItem{
 			Title:       "Experiments",
 			Description: "Try new ideas without breaking your main work",
