@@ -107,7 +107,7 @@ async function loadChanges() {
         }
         
         fileList.innerHTML = changes.map(change => {
-            const statusIcon = change.Status === 'added' ? '+' : change.Status === 'deleted' ? '-' : '~';
+            const statusIcon = change.Status === 'added' ? 'new' : change.Status === 'deleted' ? 'del' : 'mod';
             const statusClass = change.Status;
             return `
                 <div class="file-item selected" data-path="${change.Path}" onclick="toggleFile(this)">

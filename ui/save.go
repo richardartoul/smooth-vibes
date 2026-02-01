@@ -56,7 +56,7 @@ func NewSaveModel() SaveModel {
 	ti.TextStyle = lipgloss.NewStyle().Foreground(ColorText)
 
 	changes, _ := git.GetChangeSummary()
-	
+
 	state := SaveStateReview
 	if len(changes) == 0 {
 		state = SaveStateNoChanges
@@ -185,7 +185,7 @@ func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 				// Toggle selection
 				wasSelected := m.files[m.cursor].Selected
 				m.files[m.cursor].Selected = !wasSelected
-				
+
 				// If deselecting, prompt for gitignore
 				if wasSelected {
 					m.gitignoreFile = m.files[m.cursor].Change.Path
@@ -248,11 +248,11 @@ func (m SaveModel) View() string {
 	case SaveStateReview:
 		s += RenderSubtitle("Select files to save:") + "\n\n"
 		s += m.renderFileList() + "\n"
-		
+
 		selected := m.countSelected()
 		total := len(m.files)
 		s += MutedStyle.Render(fmt.Sprintf("%d of %d files selected", selected, total)) + "\n\n"
-		
+
 		s += HelpBar([][]string{{"↑↓", "navigate"}, {"space", "toggle"}, {"enter", "continue"}, {"esc", "cancel"}})
 
 	case SaveStateGitignorePrompt:
@@ -312,7 +312,7 @@ func (m SaveModel) renderFileList() string {
 
 	for i := start; i < len(m.files) && i < start+maxVisible; i++ {
 		f := m.files[i]
-		
+
 		// Cursor
 		cursor := "  "
 		if i == m.cursor {
@@ -382,7 +382,7 @@ func (m SaveModel) renderSummary() string {
 	}
 
 	s += RenderSubtitle("Saving:") + " "
-	
+
 	var parts []string
 	if added > 0 {
 		parts = append(parts, SuccessStyle.Render(fmt.Sprintf("+%d", added)))

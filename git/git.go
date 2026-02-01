@@ -185,16 +185,101 @@ func GetDiff() string {
 		// Try without HEAD for new repos
 		output, _ = RunRaw("diff", "--stat")
 	}
-	if strings.TrimSpace(output) == "" {
-		// Check for untracked files
-		status, _ := Run("status", "--short")
-		if status != "" {
-			return status
+
+	// Always check for untracked files
+	status, _ := Run("status", "--short")
+	var untrackedFiles []string
+	if status != "" {
+		for _, line := range strings.Split(status, "\n") {
+			if strings.HasPrefix(line, "?? ") {
+				untrackedFiles = append(untrackedFiles, strings.TrimPrefix(line, "?? "))
+			}
 		}
+	}
+
+	result := strings.TrimRight(output, " \t\n\r")
+
+	if len(untrackedFiles) > 0 {
+		lines := strings.Split(result, "\n")
+
+		// Find the max filename width from existing diff output
+		maxWidth := 0
+		for _, line := range lines {
+			if idx := strings.Index(line, " | "); idx > 0 {
+				if idx > maxWidth {
+					maxWidth = idx
+				}
+			}
+		}
+		// Also consider untracked filenames
+		for _, f := range untrackedFiles {
+			if len(f)+1 > maxWidth {
+				maxWidth = len(f) + 1
+			}
+		}
+		if maxWidth == 0 {
+			maxWidth = 20
+		}
+
+		// Format untracked files to match alignment
+		var untracked []string
+		for _, f := range untrackedFiles {
+			untracked = append(untracked, fmt.Sprintf(" %-*s | new file", maxWidth-1, f))
+		}
+
+		if result != "" {
+			var newLines []string
+			summaryIdx := -1
+			for i, line := range lines {
+				if strings.Contains(line, "files changed") || strings.Contains(line, "file changed") {
+					summaryIdx = i
+					// Insert untracked files before summary
+					newLines = append(newLines, untracked...)
+					// Update the summary to include new files
+					newCount := len(untrackedFiles)
+					// Parse existing count and add new files
+					updated := updateSummaryLine(line, newCount)
+					newLines = append(newLines, updated)
+					continue
+				}
+				newLines = append(newLines, line)
+			}
+			if summaryIdx == -1 {
+				newLines = append(newLines, untracked...)
+			}
+			result = strings.Join(newLines, "\n")
+		} else {
+			result = strings.Join(untracked, "\n")
+		}
+	}
+
+	if result == "" {
 		return "No changes"
 	}
-	// Trim only trailing whitespace to preserve alignment
-	return strings.TrimRight(output, " \t\n\r")
+	return result
+}
+
+// updateSummaryLine updates the "X files changed" summary to include new files
+func updateSummaryLine(line string, newFiles int) string {
+	if newFiles == 0 {
+		return line
+	}
+	// Parse "N file(s) changed" and add new files to the count
+	// Example: " 4 files changed, 51 insertions(+), 16 deletions(-)"
+	parts := strings.SplitN(strings.TrimSpace(line), " ", 2)
+	if len(parts) < 2 {
+		return line
+	}
+	count := 0
+	fmt.Sscanf(parts[0], "%d", &count)
+	newCount := count + newFiles
+
+	// Rebuild the line with updated count
+	rest := parts[1]
+	if strings.HasPrefix(rest, "file ") {
+		rest = "files " + strings.TrimPrefix(rest, "file ")
+	}
+	return fmt.Sprintf(" %d %s", newCount, rest)
 }
 
 // GetDiffFull returns the full diff output (not just stats)

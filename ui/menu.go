@@ -335,15 +335,18 @@ func (m MenuModel) View() string {
 			rightContent += ErrorStyle.Render(displayLine) + "\n"
 		} else if strings.HasPrefix(line, "@@") {
 			rightContent += HighlightStyle.Render(displayLine) + "\n"
-		} else if strings.HasPrefix(line, " M ") || strings.HasPrefix(line, "?? ") || strings.HasPrefix(line, " A ") || strings.HasPrefix(line, " D ") || strings.HasPrefix(line, "M ") || strings.HasPrefix(line, "A ") {
+		} else if strings.HasPrefix(line, " M ") || strings.HasPrefix(line, " A ") || strings.HasPrefix(line, " D ") || strings.HasPrefix(line, "M ") || strings.HasPrefix(line, "A ") {
 			// Git status short format
-			if strings.HasPrefix(line, "?? ") || strings.HasPrefix(line, " A ") || strings.HasPrefix(line, "A ") {
+			if strings.HasPrefix(line, " A ") || strings.HasPrefix(line, "A ") {
 				rightContent += SuccessStyle.Render(displayLine) + "\n"
 			} else if strings.HasPrefix(line, " D ") || strings.HasPrefix(line, "D ") {
 				rightContent += ErrorStyle.Render(displayLine) + "\n"
 			} else {
 				rightContent += HighlightStyle.Render(displayLine) + "\n"
 			}
+		} else if strings.Contains(line, "| new file") {
+			// Untracked files formatted like diff stats
+			rightContent += SuccessStyle.Render(displayLine) + "\n"
 		} else {
 			rightContent += MutedStyle.Render(displayLine) + "\n"
 		}
