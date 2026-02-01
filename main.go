@@ -128,6 +128,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.state == StateExperiments && m.experiments.IsDone() {
+			// After keep/abandon, go back to main menu
+			if m.experiments.ShouldReturnToMainMenu() {
+				m.state = StateMenu
+				m.menu.RefreshStatus()
+				return m, nil
+			}
+			// Otherwise stay in experiments menu
 			m.experiments = ui.NewExperimentsModel()
 			return m, nil
 		}

@@ -274,18 +274,18 @@ func (m ExperimentsModel) Update(msg tea.Msg) (ExperimentsModel, tea.Cmd) {
 					m.textInput.Focus()
 					return m, textinput.Blink
 				case ExpActionKeep:
+					m.blockedAction = ExpActionKeep
 					// Check for unsaved changes first
 					if m.hasChanges {
-						m.blockedAction = ExpActionKeep
 						m.state = ExperimentsStateUnsavedWarning
 						return m, nil
 					}
 					m.state = ExperimentsStateKeeping
 					return m, doKeepExperiment()
 				case ExpActionAbandon:
+					m.blockedAction = ExpActionAbandon
 					// Check for unsaved changes first
 					if m.hasChanges {
-						m.blockedAction = ExpActionAbandon
 						m.state = ExperimentsStateUnsavedWarning
 						return m, nil
 					}
@@ -454,9 +454,18 @@ func (m ExperimentsModel) View() string {
 	return BoxStyle.Render(s)
 }
 
-// IsDone returns true if the user wants to go back to main menu
+// IsDone returns true if the current flow is complete
 func (m ExperimentsModel) IsDone() bool {
 	return m.state == ExperimentsStateSuccess || m.state == ExperimentsStateError
+}
+
+// ShouldReturnToMainMenu returns true if we should go back to main menu after completion
+// This is true for keep/abandon operations since they change the branch
+func (m ExperimentsModel) ShouldReturnToMainMenu() bool {
+	if m.state != ExperimentsStateSuccess {
+		return false
+	}
+	return m.blockedAction == ExpActionKeep || m.blockedAction == ExpActionAbandon
 }
 
 // WantsBack returns true if the user selected "Back to main menu"
