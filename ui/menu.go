@@ -704,6 +704,11 @@ func (m MenuModel) SelectedAction() MenuAction {
 	return m.items[m.cursor].Action
 }
 
+// IsFocusedOnChanges returns true if the right panel (changes) is focused
+func (m MenuModel) IsFocusedOnChanges() bool {
+	return m.focusRight
+}
+
 // GetFileActions returns the current file actions map
 func (m MenuModel) GetFileActions() map[string]FileAction {
 	return m.fileActions
