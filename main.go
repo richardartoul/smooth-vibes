@@ -75,7 +75,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle escape to go back
 		if msg.String() == "esc" {
 			switch m.state {
-			case StateSave, StateSaveV2, StateQuicksave, StateSync, StateRestore, StateBackups:
+			case StateQuicksave, StateSync, StateRestore, StateBackups:
 				m.state = StateMenu
 				cmd := m.menu.RefreshStatus()
 				return m, cmd
@@ -99,14 +99,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle enter on menu
 		if msg.String() == "enter" && m.state == StateMenu {
 			switch m.menu.SelectedAction() {
-			case ui.ActionSave:
-				m.state = StateSave
-				m.save = ui.NewSaveModel()
-				return m, m.save.Init()
-			case ui.ActionSaveV2:
-				m.state = StateSaveV2
-				m.saveV2 = ui.NewSaveV2Model()
-				return m, m.saveV2.Init()
 			case ui.ActionQuicksave:
 				m.state = StateQuicksave
 				m.quicksave = ui.NewQuicksaveModel(m.menu.GetFileActions())
@@ -147,16 +139,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Handle "any key to continue" on done states
-		if m.state == StateSave && m.save.IsDone() {
-			m.state = StateMenu
-			cmd := m.menu.RefreshStatus()
-			return m, cmd
-		}
-		if m.state == StateSaveV2 && m.saveV2.IsDone() {
-			m.state = StateMenu
-			cmd := m.menu.RefreshStatus()
-			return m, cmd
-		}
 		if m.state == StateQuicksave && m.quicksave.IsDone() {
 			m.state = StateMenu
 			cmd := m.menu.RefreshStatus()
@@ -196,10 +178,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateMenu:
 		m.menu, cmd = m.menu.Update(msg)
-	case StateSave:
-		m.save, cmd = m.save.Update(msg)
-	case StateSaveV2:
-		m.saveV2, cmd = m.saveV2.Update(msg)
 	case StateQuicksave:
 		m.quicksave, cmd = m.quicksave.Update(msg)
 	case StateSync:
@@ -231,10 +209,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the application
 func (m Model) View() string {
 	switch m.state {
-	case StateSave:
-		return m.save.View()
-	case StateSaveV2:
-		return m.saveV2.View()
 	case StateQuicksave:
 		return m.quicksave.View()
 	case StateSync:

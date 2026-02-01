@@ -30,9 +30,7 @@ type MenuItem struct {
 type MenuAction int
 
 const (
-	ActionSave MenuAction = iota
-	ActionSaveV2
-	ActionQuicksave
+	ActionQuicksave MenuAction = iota
 	ActionSync
 	ActionRestore
 	ActionBackups
@@ -41,6 +39,16 @@ const (
 	ActionAbandonExperiment
 	ActionSettings
 	ActionQuit
+)
+
+// FileAction represents what to do with a changed file
+type FileAction int
+
+const (
+	FileActionSave       FileAction = iota // Stage and commit the file
+	FileActionRevert                       // Discard changes (restore to HEAD)
+	FileActionIgnoreOnce                   // Skip this time, keep local changes
+	FileActionIgnore                       // Add to .gitignore
 )
 
 // MenuModel is the model for the main menu
