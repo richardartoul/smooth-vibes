@@ -591,29 +591,21 @@ func (m SaveModel) renderActionBadge(action FileAction) string {
 func (m SaveModel) renderSummary() string {
 	save, revert, skip, ignore := m.countByAction()
 
-	var parts []string
+	var s string
 	if save > 0 {
-		parts = append(parts, SuccessStyle.Render(fmt.Sprintf("%d save", save)))
+		s += SuccessStyle.Render(fmt.Sprintf("  %d save", save)) + "\n"
 	}
 	if revert > 0 {
-		parts = append(parts, ErrorStyle.Render(fmt.Sprintf("%d revert", revert)))
+		s += ErrorStyle.Render(fmt.Sprintf("  %d revert", revert)) + "\n"
 	}
 	if skip > 0 {
-		parts = append(parts, MutedStyle.Render(fmt.Sprintf("%d skip", skip)))
+		s += MutedStyle.Render(fmt.Sprintf("  %d skip", skip)) + "\n"
 	}
 	if ignore > 0 {
-		parts = append(parts, HighlightStyle.Render(fmt.Sprintf("%d ignore", ignore)))
+		s += HighlightStyle.Render(fmt.Sprintf("  %d ignore", ignore)) + "\n"
 	}
 
-	result := ""
-	for i, part := range parts {
-		if i > 0 {
-			result += "  "
-		}
-		result += part
-	}
-
-	return result + "\n"
+	return s
 }
 
 // IsDone returns true if the save flow is complete
