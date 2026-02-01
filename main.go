@@ -352,10 +352,23 @@ func generateTestData() {
 func main() {
 	// Check if we're in a git repo
 	if !git.IsRepo() {
-		fmt.Println(ui.RenderError("Not a git repository!"))
-		fmt.Println(ui.RenderMuted("\nRun this command in a folder with git initialized."))
-		fmt.Println(ui.RenderMuted("To initialize git, run: git init"))
-		os.Exit(1)
+		// Run the init prompt UI
+		initModel := ui.NewInitModel()
+		p := tea.NewProgram(initModel, tea.WithAltScreen())
+		finalModel, err := p.Run()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Check if git was initialized
+		if m, ok := finalModel.(ui.InitModel); ok {
+			if !m.ShouldContinue() {
+				os.Exit(0)
+			}
+		} else {
+			os.Exit(0)
+		}
 	}
 
 	// Check for subcommands
