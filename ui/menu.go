@@ -78,13 +78,13 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 	// Titles and descriptions change based on whether we're on an experiment
 	saveTitle := "Save"
 	saveDesc := "Create a save point of your current work"
-	undoTitle := "Undo"
-	undoDesc := "Restore your project to an earlier save point"
+	revertTitle := "Revert"
+	revertDesc := "Restore your project to an earlier save point"
 	if !m.isOnMain {
 		saveTitle = "Save (experiment)"
 		saveDesc = "Create a save point of your current work for this experiment"
-		undoTitle = "Undo (experiment)"
-		undoDesc = "Restore your experiment to an earlier save point"
+		revertTitle = "Revert (experiment)"
+		revertDesc = "Restore your experiment to an earlier save point"
 	}
 
 	items := []MenuItem{
@@ -94,8 +94,8 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 			Action:      ActionSave,
 		},
 		{
-			Title:       undoTitle,
-			Description: undoDesc,
+			Title:       revertTitle,
+			Description: revertDesc,
 			Action:      ActionRestore,
 		},
 	}
