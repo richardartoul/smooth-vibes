@@ -52,9 +52,9 @@ type SaveModel struct {
 // NewSaveModel creates a new save model
 func NewSaveModel() SaveModel {
 	ti := textinput.New()
-	ti.Placeholder = "Describe what you worked on..."
+	ti.Placeholder = "What did you work on?"
 	ti.CharLimit = 100
-	ti.Width = 50
+	ti.Width = 30
 	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorAccent)
 	ti.TextStyle = lipgloss.NewStyle().Foreground(ColorText)
 	ti.Focus()
@@ -397,17 +397,15 @@ func (m SaveModel) renderTwoPanelView() string {
 		width = 100
 	}
 
-	// Calculate panel widths (40% left, 60% right)
-	leftWidth := width*40/100 - 4
-	rightWidth := width*60/100 - 4
+	// Calculate panel widths (35% left for message, 65% right for files)
+	leftWidth := width*35/100 - 2
+	rightWidth := width*65/100 - 2
 
-	// Build left panel content
+	// Build panel contents
 	leftContent := m.renderLeftPanel(leftWidth)
-
-	// Build right panel content
 	rightContent := m.renderRightPanel(rightWidth)
 
-	// Style the panels with borders
+	// Style the panels
 	leftBorderColor := ColorMuted
 	rightBorderColor := ColorMuted
 	if !m.focusOnFiles {
@@ -459,28 +457,22 @@ func (m SaveModel) renderTwoPanelView() string {
 	return s
 }
 
-// renderLeftPanel renders the instructions and commit message input
+// renderLeftPanel renders the instructions and save message input
 func (m SaveModel) renderLeftPanel(width int) string {
 	var s string
 
 	// Title
+	titleStyle := MutedStyle
 	if !m.focusOnFiles {
-		s += HighlightStyle.Render("Commit Message") + "\n"
-		s += HighlightStyle.Render("──────────────") + "\n\n"
-	} else {
-		s += MutedStyle.Render("Commit Message") + "\n"
-		s += MutedStyle.Render("──────────────") + "\n\n"
+		titleStyle = HighlightStyle
 	}
-
-	// Instructions
-	s += MutedStyle.Render("Enter a message describing") + "\n"
-	s += MutedStyle.Render("your changes:") + "\n\n"
+	s += titleStyle.Render("Save Message") + "\n\n"
 
 	// Text input
 	s += m.textInput.View() + "\n\n"
 
 	// Summary of actions
-	s += "\n" + m.renderSummary()
+	s += m.renderSummary()
 
 	return s
 }
@@ -490,13 +482,11 @@ func (m SaveModel) renderRightPanel(width int) string {
 	var s string
 
 	// Title
+	titleStyle := MutedStyle
 	if m.focusOnFiles {
-		s += HighlightStyle.Render("Files") + "\n"
-		s += HighlightStyle.Render("─────") + "\n\n"
-	} else {
-		s += MutedStyle.Render("Files") + "\n"
-		s += MutedStyle.Render("─────") + "\n\n"
+		titleStyle = HighlightStyle
 	}
+	s += titleStyle.Render("Files") + "\n\n"
 
 	// File list
 	maxVisible := 10
