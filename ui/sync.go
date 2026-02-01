@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"errors"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -98,12 +100,25 @@ func (m SyncModel) View() string {
 		s += HelpText("Press any key to continue")
 
 	case SyncStateError:
-		s += RenderError("✗ Sync failed") + "\n\n"
-		if m.err != nil {
-			s += RenderMuted(m.err.Error()) + "\n\n"
+		// Check if it's a "no remote" error
+		var noRemoteErr git.NoRemoteError
+		if errors.As(m.err, &noRemoteErr) {
+			s += RenderError("✗ No GitHub remote configured") + "\n\n"
+			s += RenderSubtitle("To set one up:") + "\n\n"
+			s += "  1. Create a repository on GitHub\n"
+			s += "  2. Run this command:\n\n"
+			s += HighlightStyle.Render("     git remote add origin https://github.com/USERNAME/REPO.git") + "\n\n"
+			s += "  3. Try syncing again\n\n"
+		} else {
+			s += RenderError("✗ Sync failed") + "\n\n"
+			if m.err != nil {
+				s += RenderMuted(m.err.Error()) + "\n\n"
+			}
+			// Only mention internet if we know remote exists
+			if git.HasRemote() {
+				s += RenderMuted("Make sure you have an internet connection.") + "\n\n"
+			}
 		}
-		s += RenderMuted("Make sure you have an internet connection") + "\n"
-		s += RenderMuted("and have set up your GitHub remote.") + "\n\n"
 		s += HelpText("Press any key to go back")
 	}
 
@@ -114,4 +129,3 @@ func (m SyncModel) View() string {
 func (m SyncModel) IsDone() bool {
 	return m.state == SyncStateSuccess || m.state == SyncStateError
 }
-

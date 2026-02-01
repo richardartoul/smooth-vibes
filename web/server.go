@@ -116,6 +116,11 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := git.Push(); err != nil {
+		// Check for no remote error
+		if _, ok := err.(git.NoRemoteError); ok {
+			errorResponse(w, "No GitHub remote configured. Create a repo on GitHub, then run: git remote add origin https://github.com/USERNAME/REPO.git", 400)
+			return
+		}
 		errorResponse(w, err.Error(), 500)
 		return
 	}

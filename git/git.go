@@ -80,7 +80,34 @@ func Commit(message string) error {
 }
 
 // Push pushes the current branch to origin
+// HasRemote checks if a remote (origin) is configured
+func HasRemote() bool {
+	output, err := Run("remote", "get-url", "origin")
+	return err == nil && output != ""
+}
+
+// GetRemoteURL returns the origin remote URL if configured
+func GetRemoteURL() string {
+	output, _ := Run("remote", "get-url", "origin")
+	return output
+}
+
+// NoRemoteError is returned when trying to push without a remote configured
+type NoRemoteError struct{}
+
+func (e NoRemoteError) Error() string {
+	return "No GitHub remote configured. To set one up:\n\n" +
+		"1. Create a repository on GitHub\n" +
+		"2. Run: git remote add origin https://github.com/USERNAME/REPO.git\n" +
+		"3. Try syncing again"
+}
+
 func Push() error {
+	// Check if remote exists first
+	if !HasRemote() {
+		return NoRemoteError{}
+	}
+
 	branch, err := CurrentBranch()
 	if err != nil {
 		return err
@@ -352,20 +379,20 @@ type BackupInfo struct {
 func CreateBackup(forBranch string) (string, error) {
 	timestamp := time.Now().Format("20060102-150405")
 	backupName := fmt.Sprintf("backup/%s/%s", forBranch, timestamp)
-	
+
 	// Create the backup branch at current HEAD without switching to it
 	_, err := Run("branch", backupName)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return backupName, nil
 }
 
 // ListBackups returns all backups for a specific branch
 func ListBackups(forBranch string) ([]BackupInfo, error) {
 	prefix := fmt.Sprintf("backup/%s/", forBranch)
-	
+
 	// Get all branches matching the backup pattern
 	output, err := Run("branch", "--format=%(refname:short)")
 	if err != nil {
@@ -382,13 +409,13 @@ func ListBackups(forBranch string) ([]BackupInfo, error) {
 		if strings.HasPrefix(line, prefix) {
 			// Extract timestamp from branch name
 			timestamp := strings.TrimPrefix(line, prefix)
-			
+
 			// Get the commit info for this backup
 			commitInfo, err := Run("log", "-1", "--format=%h|%s", line)
 			if err != nil {
 				continue
 			}
-			
+
 			parts := strings.SplitN(commitInfo, "|", 2)
 			hash := ""
 			message := ""
@@ -398,7 +425,7 @@ func ListBackups(forBranch string) ([]BackupInfo, error) {
 			if len(parts) >= 2 {
 				message = parts[1]
 			}
-			
+
 			backups = append(backups, BackupInfo{
 				Name:       line,
 				ForBranch:  forBranch,
@@ -408,12 +435,12 @@ func ListBackups(forBranch string) ([]BackupInfo, error) {
 			})
 		}
 	}
-	
+
 	// Reverse to show newest first
 	for i, j := 0, len(backups)-1; i < j; i, j = i+1, j-1 {
 		backups[i], backups[j] = backups[j], backups[i]
 	}
-	
+
 	return backups, nil
 }
 
@@ -426,4 +453,3 @@ func RestoreBackup(backupBranch string) error {
 func DeleteBackup(backupBranch string) error {
 	return DeleteBranch(backupBranch)
 }
-
