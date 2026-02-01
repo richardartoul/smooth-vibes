@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-REPO="richardartoul/smooth"
+REPO="richardartoul/smooth-vibes"
 INSTALL_DIR="/usr/local/bin"
 
 # Detect OS
@@ -67,14 +67,17 @@ else
     sudo mv smooth "$INSTALL_DIR/"
 fi
 
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
 echo ""
-echo "✓ smooth installed successfully!"
+echo "${GREEN}✓ smooth installed successfully!${NC}"
 echo ""
 
 # Check if INSTALL_DIR is in PATH
 case ":$PATH:" in
     *":$INSTALL_DIR:"*)
-        echo "Run 'smooth' to get started."
+        echo "${GREEN}Run 'smooth' to get started.${NC}"
         ;;
     *)
         echo "Add smooth to your PATH by adding this to your shell config:"
