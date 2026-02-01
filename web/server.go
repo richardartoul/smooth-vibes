@@ -121,6 +121,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 
+	// foo bar.
 	// If no remote exists and URL provided, add it
 	if !git.HasRemote() {
 		if req.RemoteURL == "" {

@@ -22,11 +22,18 @@ type BranchInfo struct {
 	IsCurrent bool
 }
 
-// Run executes a git command and returns the output
+// Run executes a git command and returns the output (trimmed)
 func Run(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
+}
+
+// RunRaw executes a git command and returns the raw output (preserves whitespace)
+func RunRaw(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
 }
 
 // IsRepo checks if the current directory is a git repository
@@ -173,12 +180,12 @@ func HasChanges() bool {
 // GetDiff returns the current diff output
 func GetDiff() string {
 	// Get diff of staged and unstaged changes
-	output, err := Run("diff", "HEAD", "--stat")
-	if err != nil || output == "" {
+	output, err := RunRaw("diff", "HEAD", "--stat")
+	if err != nil || strings.TrimSpace(output) == "" {
 		// Try without HEAD for new repos
-		output, _ = Run("diff", "--stat")
+		output, _ = RunRaw("diff", "--stat")
 	}
-	if output == "" {
+	if strings.TrimSpace(output) == "" {
 		// Check for untracked files
 		status, _ := Run("status", "--short")
 		if status != "" {
@@ -186,7 +193,8 @@ func GetDiff() string {
 		}
 		return "No changes"
 	}
-	return output
+	// Trim only trailing whitespace to preserve alignment
+	return strings.TrimRight(output, " \t\n\r")
 }
 
 // GetDiffFull returns the full diff output (not just stats)

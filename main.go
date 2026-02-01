@@ -47,7 +47,8 @@ func NewModel() Model {
 
 // Init initializes the application
 func (m Model) Init() tea.Cmd {
-	return nil
+	// Start the menu's tick for periodic refresh
+	return m.menu.Init()
 }
 
 // Update handles messages
@@ -71,13 +72,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.state {
 			case StateSave, StateSync, StateRestore, StateBackups:
 				m.state = StateMenu
-				m.menu.RefreshStatus()
-				return m, nil
+				cmd := m.menu.RefreshStatus()
+				return m, cmd
 			case StateExperiments:
 				if m.experiments.WantsBack() {
 					m.state = StateMenu
-					m.menu.RefreshStatus()
-					return m, nil
+					cmd := m.menu.RefreshStatus()
+					return m, cmd
 				}
 			}
 		}
@@ -123,30 +124,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle "any key to continue" on done states
 		if m.state == StateSave && m.save.IsDone() {
 			m.state = StateMenu
-			m.menu.RefreshStatus()
-			return m, nil
+			cmd := m.menu.RefreshStatus()
+			return m, cmd
 		}
 		if m.state == StateSync && m.sync.IsDone() {
 			m.state = StateMenu
-			m.menu.RefreshStatus()
-			return m, nil
+			cmd := m.menu.RefreshStatus()
+			return m, cmd
 		}
 		if m.state == StateRestore && m.restore.IsDone() {
 			m.state = StateMenu
-			m.menu.RefreshStatus()
-			return m, nil
+			cmd := m.menu.RefreshStatus()
+			return m, cmd
 		}
 		if m.state == StateBackups && m.backups.IsDone() {
 			m.state = StateMenu
-			m.menu.RefreshStatus()
-			return m, nil
+			cmd := m.menu.RefreshStatus()
+			return m, cmd
 		}
 		if m.state == StateExperiments && m.experiments.IsDone() {
 			// After keep/abandon, go back to main menu
 			if m.experiments.ShouldReturnToMainMenu() {
 				m.state = StateMenu
-				m.menu.RefreshStatus()
-				return m, nil
+				cmd := m.menu.RefreshStatus()
+				return m, cmd
 			}
 			// Otherwise stay in experiments menu
 			m.experiments = ui.NewExperimentsModel()
@@ -171,8 +172,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Check if user wants to go back
 		if m.experiments.WantsBack() {
 			m.state = StateMenu
-			m.menu.RefreshStatus()
-			return m, nil
+			cmd := m.menu.RefreshStatus()
+			return m, cmd
 		}
 		m.experiments, cmd = m.experiments.Update(msg)
 	}

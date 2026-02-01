@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,6 +11,12 @@ import (
 
 	"vc/git"
 )
+
+// tickMsg is sent periodically to refresh the menu
+type tickMsg time.Time
+
+// refreshInterval is how often the menu refreshes
+const refreshInterval = 2 * time.Second
 
 // MenuItem represents a menu option
 type MenuItem struct {
@@ -136,12 +143,28 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 
 // Init initializes the menu model
 func (m MenuModel) Init() tea.Cmd {
-	return nil
+	return tickCmd()
+}
+
+// tickCmd returns a command that sends a tick after the refresh interval
+func tickCmd() tea.Cmd {
+	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
 }
 
 // Update handles messages for the menu model
 func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tickMsg:
+		// Refresh data from git
+		m.branch, _ = git.CurrentBranch()
+		m.hasChanges = git.HasChanges()
+		m.isOnMain = git.IsOnMain()
+		m.diff = git.GetDiff()
+		m.items = m.buildMenuItems()
+		// Schedule next tick
+		return m, tickCmd()
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -331,8 +354,8 @@ func (m MenuModel) SelectedAction() MenuAction {
 	return m.items[m.cursor].Action
 }
 
-// RefreshStatus updates the branch and changes status
-func (m *MenuModel) RefreshStatus() {
+// RefreshStatus updates the branch and changes status and returns a tick command
+func (m *MenuModel) RefreshStatus() tea.Cmd {
 	m.branch, _ = git.CurrentBranch()
 	m.hasChanges = git.HasChanges()
 	m.isOnMain = git.IsOnMain()
@@ -342,6 +365,8 @@ func (m *MenuModel) RefreshStatus() {
 	if m.cursor >= len(m.items) {
 		m.cursor = len(m.items) - 1
 	}
+	// Return tick command to restart periodic refresh
+	return tickCmd()
 }
 
 // SetSize updates the terminal dimensions
