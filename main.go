@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -228,6 +231,108 @@ var quitKey = key.NewBinding(
 	key.WithHelp("q", "quit"),
 )
 
+// generateTestData creates hundreds of garbage files for stress testing the UI
+func generateTestData() {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// File extensions to use
+	extensions := []string{
+		".txt", ".md", ".go", ".js", ".ts", ".css", ".html", ".json",
+		".yaml", ".yml", ".toml", ".xml", ".py", ".rs", ".c", ".h",
+		".cpp", ".hpp", ".java", ".rb", ".sh", ".sql", ".log", ".csv",
+	}
+
+	// Directories to create files in
+	dirs := []string{
+		"test-data",
+		"test-data/src",
+		"test-data/lib",
+		"test-data/config",
+		"test-data/docs",
+		"test-data/assets",
+		"test-data/scripts",
+		"test-data/components",
+		"test-data/utils",
+		"test-data/models",
+	}
+
+	// Word lists for generating random names and content
+	adjectives := []string{
+		"quick", "lazy", "happy", "sad", "bright", "dark", "old", "new",
+		"fast", "slow", "big", "small", "hot", "cold", "soft", "hard",
+		"clean", "dirty", "loud", "quiet", "sharp", "dull", "smooth", "rough",
+	}
+	nouns := []string{
+		"fox", "dog", "cat", "bird", "fish", "tree", "flower", "rock",
+		"river", "mountain", "cloud", "star", "moon", "sun", "rain", "snow",
+		"wind", "fire", "earth", "water", "light", "shadow", "dream", "song",
+	}
+	verbs := []string{
+		"jumps", "runs", "walks", "flies", "swims", "climbs", "falls", "rises",
+		"grows", "shrinks", "opens", "closes", "starts", "stops", "moves", "stays",
+	}
+
+	// Create directories
+	fmt.Println("Creating test directories...")
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			fmt.Printf("Error creating directory %s: %v\n", dir, err)
+			continue
+		}
+	}
+
+	// Generate random file content
+	generateContent := func(lines int) string {
+		content := ""
+		for i := 0; i < lines; i++ {
+			adj := adjectives[rng.Intn(len(adjectives))]
+			noun := nouns[rng.Intn(len(nouns))]
+			verb := verbs[rng.Intn(len(verbs))]
+			content += fmt.Sprintf("The %s %s %s over the %s %s.\n",
+				adj, noun, verb, adjectives[rng.Intn(len(adjectives))], nouns[rng.Intn(len(nouns))])
+		}
+		return content
+	}
+
+	// Generate file names
+	generateFileName := func() string {
+		adj := adjectives[rng.Intn(len(adjectives))]
+		noun := nouns[rng.Intn(len(nouns))]
+		num := rng.Intn(1000)
+		return fmt.Sprintf("%s_%s_%d", adj, noun, num)
+	}
+
+	// Create files
+	totalFiles := 500
+	fmt.Printf("Generating %d test files...\n", totalFiles)
+
+	for i := 0; i < totalFiles; i++ {
+		// Pick random directory and extension
+		dir := dirs[rng.Intn(len(dirs))]
+		ext := extensions[rng.Intn(len(extensions))]
+		fileName := generateFileName() + ext
+		filePath := filepath.Join(dir, fileName)
+
+		// Generate random content (5-50 lines)
+		lines := 5 + rng.Intn(46)
+		content := generateContent(lines)
+
+		// Write file
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			fmt.Printf("Error writing file %s: %v\n", filePath, err)
+			continue
+		}
+
+		// Progress indicator every 50 files
+		if (i+1)%50 == 0 {
+			fmt.Printf("  Created %d/%d files...\n", i+1, totalFiles)
+		}
+	}
+
+	fmt.Printf("\n✓ Generated %d test files in test-data/\n", totalFiles)
+	fmt.Println("\nTo clean up later, run: rm -rf test-data/")
+}
+
 func main() {
 	// Check if we're in a git repo
 	if !git.IsRepo() {
@@ -247,13 +352,17 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "gen-test-data":
+			generateTestData()
+			return
 		case "help", "--help", "-h":
 			fmt.Println("smooth - Version control for vibe coders")
 			fmt.Println()
 			fmt.Println("Usage:")
-			fmt.Println("  vibevc       Start the TUI interface")
-			fmt.Println("  vibevc web   Start the web interface (http://localhost:3000)")
-			fmt.Println("  vibevc help  Show this help message")
+			fmt.Println("  vibevc              Start the TUI interface")
+			fmt.Println("  vibevc web          Start the web interface (http://localhost:3000)")
+			fmt.Println("  vibevc gen-test-data Generate hundreds of garbage files for stress testing")
+			fmt.Println("  vibevc help         Show this help message")
 			return
 		}
 	}
