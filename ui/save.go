@@ -37,6 +37,7 @@ type SaveModel struct {
 	err           error
 	files         []SaveFileItem
 	cursor        int
+	focusOnFiles  bool // true = file list focused, false = text input focused
 	synced        bool
 	syncErr       error
 	commitHash    string
@@ -44,6 +45,8 @@ type SaveModel struct {
 	revertedCount int
 	ignoredCount  int
 	skippedCount  int
+	width         int
+	height        int
 }
 
 // NewSaveModel creates a new save model
@@ -73,10 +76,11 @@ func NewSaveModel() SaveModel {
 	}
 
 	return SaveModel{
-		textInput: ti,
-		state:     state,
-		files:     files,
-		cursor:    0,
+		textInput:    ti,
+		state:        state,
+		files:        files,
+		cursor:       0,
+		focusOnFiles: false, // Start with text input focused
 	}
 }
 
@@ -223,6 +227,11 @@ func (m SaveModel) cycleAction(current FileAction) FileAction {
 // Update handles messages
 func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
 	case SaveMsg:
 		if msg.Err != nil {
 			m.state = SaveStateError
@@ -255,38 +264,52 @@ func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.state {
 		case SaveStateReview:
-			switch {
-			case key.Matches(msg, keys.Up):
-				if m.cursor > 0 {
-					m.cursor--
-				}
-			case key.Matches(msg, keys.Down):
-				if m.cursor < len(m.files)-1 {
-					m.cursor++
-				}
-			case msg.String() == " ":
-				// Cycle file action
-				m.files[m.cursor].Action = m.cycleAction(m.files[m.cursor].Action)
-			case msg.String() == "1":
-				m.files[m.cursor].Action = FileActionSave
-			case msg.String() == "2":
-				m.files[m.cursor].Action = FileActionRevert
-			case msg.String() == "3":
-				m.files[m.cursor].Action = FileActionIgnoreOnce
-			case msg.String() == "4":
-				m.files[m.cursor].Action = FileActionIgnore
-			case key.Matches(msg, keys.Enter):
-				// Execute save if we have a message and files to save
-				if m.textInput.Value() != "" && m.hasFilesToSave() {
-					m.state = SaveStateExecuting
-					return m, doSave(m.textInput.Value(), m.files)
-				} else if m.textInput.Value() != "" {
-					// Has message but no files to save - still execute for reverts/ignores
+			// Left/Right arrows switch focus between panels
+			if key.Matches(msg, keys.Right) && !m.focusOnFiles {
+				m.focusOnFiles = true
+				m.textInput.Blur()
+				return m, nil
+			}
+			if key.Matches(msg, keys.Left) && m.focusOnFiles {
+				m.focusOnFiles = false
+				m.textInput.Focus()
+				return m, textinput.Blink
+			}
+
+			// Enter executes save from either focus
+			if key.Matches(msg, keys.Enter) {
+				if m.textInput.Value() != "" {
 					m.state = SaveStateExecuting
 					return m, doSave(m.textInput.Value(), m.files)
 				}
-			default:
-				// Pass other keys to text input
+				return m, nil
+			}
+
+			if m.focusOnFiles {
+				// File list is focused - handle file navigation and actions
+				switch {
+				case key.Matches(msg, keys.Up):
+					if m.cursor > 0 {
+						m.cursor--
+					}
+				case key.Matches(msg, keys.Down):
+					if m.cursor < len(m.files)-1 {
+						m.cursor++
+					}
+				case msg.String() == " ":
+					// Cycle file action
+					m.files[m.cursor].Action = m.cycleAction(m.files[m.cursor].Action)
+				case msg.String() == "1":
+					m.files[m.cursor].Action = FileActionSave
+				case msg.String() == "2":
+					m.files[m.cursor].Action = FileActionRevert
+				case msg.String() == "3":
+					m.files[m.cursor].Action = FileActionIgnoreOnce
+				case msg.String() == "4":
+					m.files[m.cursor].Action = FileActionIgnore
+				}
+			} else {
+				// Text input is focused - pass keys to text input
 				var cmd tea.Cmd
 				m.textInput, cmd = m.textInput.Update(msg)
 				return m, cmd
@@ -299,48 +322,30 @@ func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 
 // View renders the save flow
 func (m SaveModel) View() string {
-	var s string
-
-	s += RenderTitle("Save") + "\n\n"
-
 	switch m.state {
 	case SaveStateNoChanges:
+		s := RenderTitle("Save") + "\n\n"
 		s += RenderMuted("No changes to save!") + "\n\n"
 		s += RenderMuted("Your work is already saved.") + "\n\n"
 		s += HelpText("Press any key to go back")
+		return BoxStyle.Render(s)
 
 	case SaveStateReview:
-		// Commit message input at top
-		s += RenderSubtitle("Commit message:") + "\n"
-		s += m.textInput.View() + "\n\n"
-
-		// File list with actions
-		s += RenderSubtitle("Files:") + "\n\n"
-		s += m.renderFileList() + "\n"
-
-		// Summary
-		s += m.renderSummary() + "\n"
-
-		// Legend
-		s += MutedStyle.Render("1=Save  2=Revert  3=Skip  4=Ignore forever") + "\n\n"
-
-		// Help
-		s += HelpBar([][]string{
-			{"↑↓", "navigate"},
-			{"space", "cycle action"},
-			{"1-4", "set action"},
-			{"enter", "save"},
-			{"esc", "cancel"},
-		})
+		return m.renderTwoPanelView()
 
 	case SaveStateExecuting:
+		s := RenderTitle("Save") + "\n\n"
 		s += RenderHighlight("⟳ Processing changes...") + "\n"
+		return BoxStyle.Render(s)
 
 	case SaveStateAutoSyncing:
+		s := RenderTitle("Save") + "\n\n"
 		s += RenderSuccess("✓ Done!") + "\n\n"
 		s += RenderHighlight("⟳ Syncing to GitHub...") + "\n"
+		return BoxStyle.Render(s)
 
 	case SaveStateSuccess:
+		s := RenderTitle("Save") + "\n\n"
 		s += RenderSuccess("✓ Complete!") + "\n\n"
 
 		if m.savedCount > 0 {
@@ -370,23 +375,131 @@ func (m SaveModel) View() string {
 			}
 		}
 		s += "\n" + HelpText("Press any key to continue")
+		return BoxStyle.Render(s)
 
 	case SaveStateError:
+		s := RenderTitle("Save") + "\n\n"
 		s += RenderError("✗ Save failed") + "\n\n"
 		if m.err != nil {
 			s += RenderMuted(m.err.Error()) + "\n\n"
 		}
 		s += HelpText("Press any key to go back")
+		return BoxStyle.Render(s)
 	}
 
-	return BoxStyle.Render(s)
+	return ""
 }
 
-// renderFileList renders the file list with action badges
-func (m SaveModel) renderFileList() string {
+// renderTwoPanelView renders the two-panel save review layout
+func (m SaveModel) renderTwoPanelView() string {
+	width := m.width
+	if width < 80 {
+		width = 100
+	}
+
+	// Calculate panel widths (40% left, 60% right)
+	leftWidth := width*40/100 - 4
+	rightWidth := width*60/100 - 4
+
+	// Build left panel content
+	leftContent := m.renderLeftPanel(leftWidth)
+
+	// Build right panel content
+	rightContent := m.renderRightPanel(rightWidth)
+
+	// Style the panels with borders
+	leftBorderColor := ColorMuted
+	rightBorderColor := ColorMuted
+	if !m.focusOnFiles {
+		leftBorderColor = ColorAccent
+	} else {
+		rightBorderColor = ColorAccent
+	}
+
+	leftPanel := lipgloss.NewStyle().
+		Width(leftWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(leftBorderColor).
+		Render(leftContent)
+
+	rightPanel := lipgloss.NewStyle().
+		Width(rightWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(rightBorderColor).
+		Render(rightContent)
+
+	// Join panels horizontally
+	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+
+	// Build full view
+	var s string
+	s += RenderTitle("Save") + "\n\n"
+	s += panels + "\n\n"
+
+	// Help bar at bottom
+	if m.focusOnFiles {
+		s += HelpBar([][]string{
+			{"←", "message"},
+			{"↑↓", "navigate"},
+			{"space", "cycle"},
+			{"1-4", "set action"},
+			{"enter", "save"},
+			{"esc", "cancel"},
+		})
+	} else {
+		s += HelpBar([][]string{
+			{"→", "files"},
+			{"enter", "save"},
+			{"esc", "cancel"},
+		})
+	}
+
+	return s
+}
+
+// renderLeftPanel renders the instructions and commit message input
+func (m SaveModel) renderLeftPanel(width int) string {
 	var s string
 
-	maxVisible := 8
+	// Title
+	if !m.focusOnFiles {
+		s += HighlightStyle.Render("Commit Message") + "\n"
+		s += HighlightStyle.Render("──────────────") + "\n\n"
+	} else {
+		s += MutedStyle.Render("Commit Message") + "\n"
+		s += MutedStyle.Render("──────────────") + "\n\n"
+	}
+
+	// Instructions
+	s += MutedStyle.Render("Enter a message describing") + "\n"
+	s += MutedStyle.Render("your changes:") + "\n\n"
+
+	// Text input
+	s += m.textInput.View() + "\n\n"
+
+	// Summary of actions
+	s += "\n" + m.renderSummary()
+
+	return s
+}
+
+// renderRightPanel renders the file list with actions
+func (m SaveModel) renderRightPanel(width int) string {
+	var s string
+
+	// Title
+	if m.focusOnFiles {
+		s += HighlightStyle.Render("Files") + "\n"
+		s += HighlightStyle.Render("─────") + "\n\n"
+	} else {
+		s += MutedStyle.Render("Files") + "\n"
+		s += MutedStyle.Render("─────") + "\n\n"
+	}
+
+	// File list
+	maxVisible := 10
 	start := 0
 	if m.cursor >= maxVisible {
 		start = m.cursor - maxVisible + 1
@@ -397,49 +510,55 @@ func (m SaveModel) renderFileList() string {
 
 		// Cursor
 		cursor := "  "
-		if i == m.cursor {
-			cursor = MenuCursorStyle.Render("> ")
+		if m.focusOnFiles && i == m.cursor {
+			cursor = HighlightStyle.Render("▸ ")
 		}
 
 		// Action badge
 		badge := m.renderActionBadge(f.Action)
 
-		// File status icon
-		var icon string
-		var statusStyle lipgloss.Style
+		// Filename (truncate if needed)
+		name := f.Change.Path
+		maxNameLen := width - 15
+		if maxNameLen < 10 {
+			maxNameLen = 10
+		}
+		if len(name) > maxNameLen {
+			name = "..." + name[len(name)-maxNameLen+3:]
+		}
+
+		// Status indicator
+		status := ""
 		switch f.Change.Status {
 		case "added":
-			icon = "+"
-			statusStyle = SuccessStyle
+			status = SuccessStyle.Render("+")
 		case "deleted":
-			icon = "-"
-			statusStyle = ErrorStyle
+			status = ErrorStyle.Render("-")
 		default:
-			icon = "~"
-			statusStyle = HighlightStyle
+			status = HighlightStyle.Render("~")
 		}
 
-		// File path
-		path := f.Change.Path
-		if len(path) > 35 {
-			path = "..." + path[len(path)-32:]
-		}
-
-		// Dim the path if action is not Save
-		pathStyle := NormalStyle
+		// Dim filename if not saving
+		nameStyle := NormalStyle
 		if f.Action != FileActionSave {
-			pathStyle = MutedStyle
+			nameStyle = MutedStyle
 		}
 
-		s += fmt.Sprintf("%s%s %s %s\n", cursor, badge, statusStyle.Render(icon), pathStyle.Render(path))
+		s += fmt.Sprintf("%s%s %s %s\n", cursor, badge, status, nameStyle.Render(name))
 	}
 
 	if len(m.files) > maxVisible {
 		s += MutedStyle.Render(fmt.Sprintf("\n  ... %d total files", len(m.files)))
 	}
 
+	// Legend (only when focused)
+	if m.focusOnFiles {
+		s += "\n\n" + MutedStyle.Render("1=Save 2=Revert 3=Skip 4=Ignore")
+	}
+
 	return s
 }
+
 
 // renderActionBadge renders a colored badge for the action
 func (m SaveModel) renderActionBadge(action FileAction) string {
