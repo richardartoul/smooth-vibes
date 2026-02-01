@@ -699,8 +699,12 @@ func (m MenuModel) getMaxDiffLines() int {
 	return maxLines
 }
 
-// SelectedAction returns the currently selected action
+// SelectedAction returns the currently selected action, or -1 if the changes panel is focused
 func (m MenuModel) SelectedAction() MenuAction {
+	// Don't return an action if we're focused on the changes panel
+	if m.focusRight {
+		return MenuAction(-1)
+	}
 	return m.items[m.cursor].Action
 }
 
