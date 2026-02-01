@@ -58,7 +58,8 @@ type MenuModel struct {
 	fileCursor       int
 	expandedFiles    map[string]bool
 	fileDiffs        map[string]string
-	diffScrollOffset map[string]int // Scroll offset per file
+	diffScrollOffset map[string]int        // Scroll offset per file
+	fileActions      map[string]FileAction // Action for each file (Save/Revert/Skip/Ignore)
 }
 
 // NewMenuModel creates a new menu model
@@ -68,6 +69,12 @@ func NewMenuModel() MenuModel {
 	isOnMain := git.IsOnMain()
 	diff := git.GetDiff()
 	changedFiles, _ := git.GetChangeSummary()
+
+	// Initialize file actions - all files default to Save
+	fileActions := make(map[string]FileAction)
+	for _, f := range changedFiles {
+		fileActions[f.Path] = FileActionSave
+	}
 
 	m := MenuModel{
 		cursor:           0,
@@ -83,6 +90,7 @@ func NewMenuModel() MenuModel {
 		expandedFiles:    make(map[string]bool),
 		fileDiffs:        make(map[string]string),
 		diffScrollOffset: make(map[string]int),
+		fileActions:      fileActions,
 	}
 	m.items = m.buildMenuItems()
 	return m
@@ -91,32 +99,18 @@ func NewMenuModel() MenuModel {
 // buildMenuItems creates the menu items based on current state
 func (m MenuModel) buildMenuItems() []MenuItem {
 	// Titles and descriptions change based on whether we're on an experiment
-	saveTitle := "Save"
-	saveDesc := "Create a save point of your current work"
 	revertTitle := "Revert"
 	revertDesc := "Restore your project to an earlier save point"
 	if !m.isOnMain {
-		saveTitle = "Save (experiment)"
-		saveDesc = "Create a save point of your current work for this experiment"
 		revertTitle = "Revert (experiment)"
 		revertDesc = "Restore your experiment to an earlier save point"
 	}
 
 	items := []MenuItem{
 		{
-			Title:       "Quicksave",
-			Description: "Save everything instantly with no prompts",
+			Title:       "Save",
+			Description: "Save your work (use → to configure per-file actions)",
 			Action:      ActionQuicksave,
-		},
-		{
-			Title:       saveTitle,
-			Description: saveDesc,
-			Action:      ActionSave,
-		},
-		{
-			Title:       saveTitle + " (v2)",
-			Description: "Experimental: choose save/revert/skip/ignore per file",
-			Action:      ActionSaveV2,
 		},
 		{
 			Title:       revertTitle,
@@ -210,6 +204,12 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 		if m.fileCursor >= len(m.changedFiles) {
 			m.fileCursor = max(0, len(m.changedFiles)-1)
 		}
+		// Update file actions - keep existing actions, add new files with Save
+		for _, f := range m.changedFiles {
+			if _, exists := m.fileActions[f.Path]; !exists {
+				m.fileActions[f.Path] = FileActionSave
+			}
+		}
 		// Schedule next tick
 		return m, tickCmd()
 	case tea.WindowSizeMsg:
@@ -278,7 +278,7 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 					m.cursor++
 				}
 			}
-		case key.Matches(msg, keys.Enter), key.Matches(msg, keys.Space):
+		case key.Matches(msg, keys.Enter):
 			if m.focusRight && len(m.changedFiles) > 0 {
 				// Toggle diff for the selected file
 				filePath := m.changedFiles[m.fileCursor].Path
@@ -291,6 +291,33 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 					}
 					m.expandedFiles[filePath] = true
 				}
+			}
+		case key.Matches(msg, keys.Space):
+			if m.focusRight && len(m.changedFiles) > 0 {
+				// Cycle file action
+				filePath := m.changedFiles[m.fileCursor].Path
+				current := m.fileActions[filePath]
+				m.fileActions[filePath] = cycleFileAction(current)
+			}
+		case msg.String() == "1":
+			if m.focusRight && len(m.changedFiles) > 0 {
+				filePath := m.changedFiles[m.fileCursor].Path
+				m.fileActions[filePath] = FileActionSave
+			}
+		case msg.String() == "2":
+			if m.focusRight && len(m.changedFiles) > 0 {
+				filePath := m.changedFiles[m.fileCursor].Path
+				m.fileActions[filePath] = FileActionRevert
+			}
+		case msg.String() == "3":
+			if m.focusRight && len(m.changedFiles) > 0 {
+				filePath := m.changedFiles[m.fileCursor].Path
+				m.fileActions[filePath] = FileActionIgnoreOnce
+			}
+		case msg.String() == "4":
+			if m.focusRight && len(m.changedFiles) > 0 {
+				filePath := m.changedFiles[m.fileCursor].Path
+				m.fileActions[filePath] = FileActionIgnore
 			}
 		}
 	}
@@ -380,17 +407,19 @@ func (m MenuModel) View() string {
 
 	if m.focusRight && viewingExpandedDiff {
 		helpBar = HelpBar([][]string{
-			{"↑↓", "scroll diff"},
-			{"⏎/space", "collapse"},
+			{"↑↓", "scroll"},
+			{"⏎", "collapse"},
+			{"space", "action"},
+			{"1-4", "set"},
 			{"←", "menu"},
-			{"q", "quit"},
 		})
 	} else if m.focusRight {
 		helpBar = HelpBar([][]string{
 			{"↑↓", "navigate"},
-			{"⏎/space", "expand diff"},
+			{"⏎", "diff"},
+			{"space", "action"},
+			{"1-4", "set"},
 			{"←", "menu"},
-			{"q", "quit"},
 		})
 	} else if showDiffPanel && len(m.changedFiles) > 0 {
 		helpBar = HelpBar([][]string{
@@ -517,15 +546,19 @@ func (m MenuModel) View() string {
 				cursor = MutedStyle.Render("> ")
 			}
 
+			// Action badge
+			action := m.fileActions[file.Path]
+			actionBadge := m.renderFileActionBadge(action)
+
 			// Expand/collapse indicator
 			expandIcon := "▶"
 			if m.expandedFiles[file.Path] {
 				expandIcon = "▼"
 			}
 
-			// Truncate filename if needed
-			displayPath := truncateLine(file.Path, rightWidth-12)
-			rightContent += cursor + MutedStyle.Render(expandIcon) + " " + statusIcon + " " + fileStyle.Render(displayPath) + "\n"
+			// Truncate filename if needed (account for badge width)
+			displayPath := truncateLine(file.Path, rightWidth-20)
+			rightContent += cursor + actionBadge + " " + MutedStyle.Render(expandIcon) + " " + statusIcon + " " + fileStyle.Render(displayPath) + "\n"
 			lineCount++
 
 			// Show diff if expanded
@@ -663,6 +696,64 @@ func (m MenuModel) SelectedAction() MenuAction {
 	return m.items[m.cursor].Action
 }
 
+// GetFileActions returns the current file actions map
+func (m MenuModel) GetFileActions() map[string]FileAction {
+	return m.fileActions
+}
+
+// cycleFileAction cycles through file actions
+func cycleFileAction(current FileAction) FileAction {
+	switch current {
+	case FileActionSave:
+		return FileActionRevert
+	case FileActionRevert:
+		return FileActionIgnoreOnce
+	case FileActionIgnoreOnce:
+		return FileActionIgnore
+	case FileActionIgnore:
+		return FileActionSave
+	default:
+		return FileActionSave
+	}
+}
+
+// renderFileActionBadge renders a compact badge for the file action
+func (m MenuModel) renderFileActionBadge(action FileAction) string {
+	var style lipgloss.Style
+	var text string
+
+	switch action {
+	case FileActionSave:
+		style = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#000")).
+			Background(ColorSuccess).
+			Bold(true)
+		text = "SAVE"
+	case FileActionRevert:
+		style = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#000")).
+			Background(ColorDanger).
+			Bold(true)
+		text = "RVRT"
+	case FileActionIgnoreOnce:
+		style = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#000")).
+			Background(ColorMuted)
+		text = "SKIP"
+	case FileActionIgnore:
+		style = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#000")).
+			Background(ColorHighlight).
+			Bold(true)
+		text = "IGNR"
+	default:
+		style = lipgloss.NewStyle().Background(ColorMuted)
+		text = "????"
+	}
+
+	return style.Render(text)
+}
+
 // RefreshStatus updates the branch and changes status and returns a tick command
 func (m *MenuModel) RefreshStatus() tea.Cmd {
 	m.branch, _ = git.CurrentBranch()
@@ -683,6 +774,11 @@ func (m *MenuModel) RefreshStatus() tea.Cmd {
 	m.expandedFiles = make(map[string]bool)
 	m.fileDiffs = make(map[string]string)
 	m.diffScrollOffset = make(map[string]int)
+	// Reset file actions - new files get Save action
+	m.fileActions = make(map[string]FileAction)
+	for _, f := range m.changedFiles {
+		m.fileActions[f.Path] = FileActionSave
+	}
 	// Return tick command to restart periodic refresh
 	return tickCmd()
 }

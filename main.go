@@ -113,7 +113,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.saveV2.Init()
 			case ui.ActionQuicksave:
 				m.state = StateQuicksave
-				m.quicksave = ui.NewQuicksaveModel()
+				m.quicksave = ui.NewQuicksaveModel(m.menu.GetFileActions())
 				return m, m.quicksave.Init()
 			case ui.ActionSync:
 				m.state = StateSync
