@@ -67,7 +67,6 @@ type MenuModel struct {
 	expandedFiles    map[string]bool
 	fileDiffs        map[string]string
 	diffScrollOffset map[string]int          // Scroll offset per file
-	fileActions      map[string]FileAction   // Action for each file (Save/Revert/Skip/Ignore)
 	diffStats        map[string]git.DiffStat // Line additions/deletions per file
 }
 
@@ -78,12 +77,6 @@ func NewMenuModel() MenuModel {
 	isOnMain := git.IsOnMain()
 	diff := git.GetDiff()
 	changedFiles, _ := git.GetChangeSummary()
-
-	// Initialize file actions - all files default to Save
-	fileActions := make(map[string]FileAction)
-	for _, f := range changedFiles {
-		fileActions[f.Path] = FileActionSave
-	}
 
 	// Load diff stats for line counts
 	diffStats := make(map[string]git.DiffStat)
@@ -109,7 +102,6 @@ func NewMenuModel() MenuModel {
 		expandedFiles:    make(map[string]bool),
 		fileDiffs:        make(map[string]string),
 		diffScrollOffset: make(map[string]int),
-		fileActions:      fileActions,
 		diffStats:        diffStats,
 	}
 	m.items = m.buildMenuItems()
@@ -224,12 +216,6 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 		if m.fileCursor >= len(m.changedFiles) {
 			m.fileCursor = max(0, len(m.changedFiles)-1)
 		}
-		// Update file actions - keep existing actions, add new files with Save
-		for _, f := range m.changedFiles {
-			if _, exists := m.fileActions[f.Path]; !exists {
-				m.fileActions[f.Path] = FileActionSave
-			}
-		}
 		// Refresh diff stats
 		if stats, err := git.GetUncommittedDiffStat(); err == nil {
 			m.diffStats = make(map[string]git.DiffStat)
@@ -319,33 +305,6 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 					}
 					m.expandedFiles[filePath] = true
 				}
-			}
-		case key.Matches(msg, keys.Space):
-			if m.focusRight && len(m.changedFiles) > 0 {
-				// Cycle file action
-				filePath := m.changedFiles[m.fileCursor].Path
-				current := m.fileActions[filePath]
-				m.fileActions[filePath] = cycleFileAction(current)
-			}
-		case msg.String() == "1":
-			if m.focusRight && len(m.changedFiles) > 0 {
-				filePath := m.changedFiles[m.fileCursor].Path
-				m.fileActions[filePath] = FileActionSave
-			}
-		case msg.String() == "2":
-			if m.focusRight && len(m.changedFiles) > 0 {
-				filePath := m.changedFiles[m.fileCursor].Path
-				m.fileActions[filePath] = FileActionRevert
-			}
-		case msg.String() == "3":
-			if m.focusRight && len(m.changedFiles) > 0 {
-				filePath := m.changedFiles[m.fileCursor].Path
-				m.fileActions[filePath] = FileActionIgnoreOnce
-			}
-		case msg.String() == "4":
-			if m.focusRight && len(m.changedFiles) > 0 {
-				filePath := m.changedFiles[m.fileCursor].Path
-				m.fileActions[filePath] = FileActionIgnore
 			}
 		}
 	}
@@ -437,16 +396,12 @@ func (m MenuModel) View() string {
 		helpBar = HelpBar([][]string{
 			{"↑↓", "scroll"},
 			{"⏎", "collapse"},
-			{"space", "action"},
-			{"1-4", "set"},
 			{"←", "menu"},
 		})
 	} else if m.focusRight {
 		helpBar = HelpBar([][]string{
 			{"↑↓", "navigate"},
-			{"⏎", "diff"},
-			{"space", "action"},
-			{"1-4", "set"},
+			{"⏎", "expand diff"},
 			{"←", "menu"},
 		})
 	} else if showDiffPanel && len(m.changedFiles) > 0 {
@@ -574,10 +529,6 @@ func (m MenuModel) View() string {
 				cursor = MutedStyle.Render("> ")
 			}
 
-			// Action badge
-			action := m.fileActions[file.Path]
-			actionBadge := m.renderFileActionBadge(action)
-
 			// Expand/collapse indicator
 			expandIcon := "▶"
 			if m.expandedFiles[file.Path] {
@@ -608,9 +559,9 @@ func (m MenuModel) View() string {
 				}
 			}
 
-			// Truncate filename if needed (account for badge width and diff stats)
-			displayPath := truncateLine(file.Path, rightWidth-30)
-			rightContent += cursor + actionBadge + " " + MutedStyle.Render(expandIcon) + " " + statusIcon + " " + fileStyle.Render(displayPath) + diffStatStr + "\n"
+			// Truncate filename if needed (account for diff stats)
+			displayPath := truncateLine(file.Path, rightWidth-25)
+			rightContent += cursor + MutedStyle.Render(expandIcon) + " " + statusIcon + " " + fileStyle.Render(displayPath) + diffStatStr + "\n"
 			lineCount++
 
 			// Show diff if expanded
@@ -757,64 +708,6 @@ func (m MenuModel) IsFocusedOnChanges() bool {
 	return m.focusRight
 }
 
-// GetFileActions returns the current file actions map
-func (m MenuModel) GetFileActions() map[string]FileAction {
-	return m.fileActions
-}
-
-// cycleFileAction cycles through file actions
-func cycleFileAction(current FileAction) FileAction {
-	switch current {
-	case FileActionSave:
-		return FileActionRevert
-	case FileActionRevert:
-		return FileActionIgnoreOnce
-	case FileActionIgnoreOnce:
-		return FileActionIgnore
-	case FileActionIgnore:
-		return FileActionSave
-	default:
-		return FileActionSave
-	}
-}
-
-// renderFileActionBadge renders a compact badge for the file action
-func (m MenuModel) renderFileActionBadge(action FileAction) string {
-	var style lipgloss.Style
-	var text string
-
-	switch action {
-	case FileActionSave:
-		style = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000")).
-			Background(ColorSuccess).
-			Bold(true)
-		text = "SAVE"
-	case FileActionRevert:
-		style = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000")).
-			Background(ColorDanger).
-			Bold(true)
-		text = "RVRT"
-	case FileActionIgnoreOnce:
-		style = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000")).
-			Background(ColorMuted)
-		text = "SKIP"
-	case FileActionIgnore:
-		style = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000")).
-			Background(ColorHighlight).
-			Bold(true)
-		text = "IGNR"
-	default:
-		style = lipgloss.NewStyle().Background(ColorMuted)
-		text = "????"
-	}
-
-	return style.Render(text)
-}
-
 // RefreshStatus updates the branch and changes status and returns a tick command
 func (m *MenuModel) RefreshStatus() tea.Cmd {
 	m.branch, _ = git.CurrentBranch()
@@ -835,11 +728,6 @@ func (m *MenuModel) RefreshStatus() tea.Cmd {
 	m.expandedFiles = make(map[string]bool)
 	m.fileDiffs = make(map[string]string)
 	m.diffScrollOffset = make(map[string]int)
-	// Reset file actions - new files get Save action
-	m.fileActions = make(map[string]FileAction)
-	for _, f := range m.changedFiles {
-		m.fileActions[f.Path] = FileActionSave
-	}
 	// Refresh diff stats
 	m.diffStats = make(map[string]git.DiffStat)
 	if stats, err := git.GetUncommittedDiffStat(); err == nil {

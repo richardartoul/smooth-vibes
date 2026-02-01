@@ -20,7 +20,7 @@ type AppState int
 
 const (
 	StateMenu AppState = iota
-	StateQuicksave
+	StateSave
 	StateSync
 	StateRestore
 	StateBackups
@@ -32,7 +32,7 @@ const (
 type Model struct {
 	state       AppState
 	menu        ui.MenuModel
-	quicksave   ui.QuicksaveModel
+	save        ui.SaveModel
 	sync        ui.SyncModel
 	restore     ui.RestoreModel
 	backups     ui.BackupsModel
@@ -75,7 +75,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle escape to go back
 		if msg.String() == "esc" {
 			switch m.state {
-			case StateQuicksave, StateSync, StateRestore, StateBackups:
+			case StateSave, StateSync, StateRestore, StateBackups:
 				m.state = StateMenu
 				cmd := m.menu.RefreshStatus()
 				return m, cmd
@@ -105,9 +105,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			switch action {
 			case ui.ActionQuicksave:
-				m.state = StateQuicksave
-				m.quicksave = ui.NewQuicksaveModel(m.menu.GetFileActions())
-				return m, m.quicksave.Init()
+				m.state = StateSave
+				m.save = ui.NewSaveModel()
+				return m, m.save.Init()
 			case ui.ActionSync:
 				m.state = StateSync
 				m.sync = ui.NewSyncModel()
@@ -144,7 +144,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Handle "any key to continue" on done states
-		if m.state == StateQuicksave && m.quicksave.IsDone() {
+		if m.state == StateSave && m.save.IsDone() {
 			m.state = StateMenu
 			cmd := m.menu.RefreshStatus()
 			return m, cmd
@@ -183,8 +183,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateMenu:
 		m.menu, cmd = m.menu.Update(msg)
-	case StateQuicksave:
-		m.quicksave, cmd = m.quicksave.Update(msg)
+	case StateSave:
+		m.save, cmd = m.save.Update(msg)
 	case StateSync:
 		m.sync, cmd = m.sync.Update(msg)
 	case StateRestore:
@@ -214,8 +214,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the application
 func (m Model) View() string {
 	switch m.state {
-	case StateQuicksave:
-		return m.quicksave.View()
+	case StateSave:
+		return m.save.View()
 	case StateSync:
 		return m.sync.View()
 	case StateRestore:
