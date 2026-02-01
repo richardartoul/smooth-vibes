@@ -264,13 +264,13 @@ func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.state {
 		case SaveStateReview:
-			// Left/Right arrows switch focus between panels
-			if key.Matches(msg, keys.Right) && !m.focusOnFiles {
+			// Only arrow keys switch focus (not h/l which conflict with typing)
+			if msg.String() == "right" && !m.focusOnFiles {
 				m.focusOnFiles = true
 				m.textInput.Blur()
 				return m, nil
 			}
-			if key.Matches(msg, keys.Left) && m.focusOnFiles {
+			if msg.String() == "left" && m.focusOnFiles {
 				m.focusOnFiles = false
 				m.textInput.Focus()
 				return m, textinput.Blink
