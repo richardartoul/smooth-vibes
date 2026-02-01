@@ -655,6 +655,22 @@ func GetFileDiff(path string) string {
 	return output
 }
 
+// RevertFile discards changes for a specific file, restoring it to HEAD
+func RevertFile(path string) error {
+	_, err := Run("checkout", "HEAD", "--", path)
+	return err
+}
+
+// RevertFiles discards changes for multiple files
+func RevertFiles(paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	args := append([]string{"checkout", "HEAD", "--"}, paths...)
+	_, err := Run(args...)
+	return err
+}
+
 // TrimBackups removes old backups beyond the maxCount limit for a branch
 // Keeps the newest backups and deletes the oldest ones
 func TrimBackups(forBranch string, maxCount int) error {

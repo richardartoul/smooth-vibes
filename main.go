@@ -21,6 +21,7 @@ type AppState int
 const (
 	StateMenu AppState = iota
 	StateSave
+	StateSaveV2
 	StateSync
 	StateRestore
 	StateBackups
@@ -33,6 +34,7 @@ type Model struct {
 	state       AppState
 	menu        ui.MenuModel
 	save        ui.SaveModel
+	saveV2      ui.SaveV2Model
 	sync        ui.SyncModel
 	restore     ui.RestoreModel
 	backups     ui.BackupsModel
@@ -75,7 +77,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle escape to go back
 		if msg.String() == "esc" {
 			switch m.state {
-			case StateSave, StateSync, StateRestore, StateBackups:
+			case StateSave, StateSaveV2, StateSync, StateRestore, StateBackups:
 				m.state = StateMenu
 				cmd := m.menu.RefreshStatus()
 				return m, cmd
@@ -103,6 +105,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = StateSave
 				m.save = ui.NewSaveModel()
 				return m, m.save.Init()
+			case ui.ActionSaveV2:
+				m.state = StateSaveV2
+				m.saveV2 = ui.NewSaveV2Model()
+				return m, m.saveV2.Init()
 			case ui.ActionSync:
 				m.state = StateSync
 				m.sync = ui.NewSyncModel()
@@ -144,6 +150,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.menu.RefreshStatus()
 			return m, cmd
 		}
+		if m.state == StateSaveV2 && m.saveV2.IsDone() {
+			m.state = StateMenu
+			cmd := m.menu.RefreshStatus()
+			return m, cmd
+		}
 		if m.state == StateSync && m.sync.IsDone() {
 			m.state = StateMenu
 			cmd := m.menu.RefreshStatus()
@@ -180,6 +191,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.menu, cmd = m.menu.Update(msg)
 	case StateSave:
 		m.save, cmd = m.save.Update(msg)
+	case StateSaveV2:
+		m.saveV2, cmd = m.saveV2.Update(msg)
 	case StateSync:
 		m.sync, cmd = m.sync.Update(msg)
 	case StateRestore:
@@ -211,6 +224,8 @@ func (m Model) View() string {
 	switch m.state {
 	case StateSave:
 		return m.save.View()
+	case StateSaveV2:
+		return m.saveV2.View()
 	case StateSync:
 		return m.sync.View()
 	case StateRestore:
