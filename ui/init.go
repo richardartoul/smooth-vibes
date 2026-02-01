@@ -80,12 +80,13 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.done = true
 					m.choice = InitChoiceInit
 				}
+				return m, nil
 			} else {
-				// Exit
+				// Exit immediately
 				m.done = true
 				m.choice = InitChoiceExit
+				return m, tea.Quit
 			}
-			return m, nil
 		case msg.String() == "q" || msg.String() == "ctrl+c" || msg.String() == "esc":
 			m.done = true
 			m.choice = InitChoiceExit

@@ -44,7 +44,13 @@ func IsRepo() bool {
 
 // CurrentBranch returns the current branch name
 func CurrentBranch() (string, error) {
-	return Run("rev-parse", "--abbrev-ref", "HEAD")
+	// Use symbolic-ref which works even in repos with no commits
+	branch, err := Run("symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		// Fallback for detached HEAD state
+		return Run("rev-parse", "--abbrev-ref", "HEAD")
+	}
+	return branch, nil
 }
 
 // AddAll stages all changes
