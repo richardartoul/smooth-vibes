@@ -265,8 +265,8 @@ func (m MenuModel) View() string {
 		leftContent += "\n" + MutedStyle.Render("  "+selectedDesc) + "\n"
 	}
 
-	// Help
-	leftContent += "\n" + HelpBar([][]string{
+	// Help bar - rendered separately and positioned at bottom center
+	helpBar := HelpBar([][]string{
 		{"↑↓", "navigate"},
 		{"enter", "select"},
 		{"q", "quit"},
@@ -277,8 +277,8 @@ func (m MenuModel) View() string {
 		content := lipgloss.NewStyle().
 			Padding(1, 2).
 			Render(leftContent)
-		// Place content in a fixed-size frame to ensure clean redraws on resize
-		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
+		// Place content at top, help bar at bottom center
+		return placeWithBottomHelp(content, helpBar, m.width, m.height)
 	}
 
 	// Calculate widths for split layout
@@ -356,7 +356,7 @@ func (m MenuModel) View() string {
 
 	rightPanel := lipgloss.NewStyle().
 		Width(rightWidth).
-		Height(panelHeight-4). // Account for border
+		Height(panelHeight-6). // Account for border and bottom help bar
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorSecondary).
@@ -365,8 +365,26 @@ func (m MenuModel) View() string {
 	// Join panels horizontally
 	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	// Place in a fixed-size frame to ensure clean redraws on resize
-	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, combined)
+	// Place content at top, help bar at bottom center
+	return placeWithBottomHelp(combined, helpBar, m.width, m.height)
+}
+
+// placeWithBottomHelp renders content with a help bar fixed at the bottom center
+func placeWithBottomHelp(content, helpBar string, width, height int) string {
+	// Center the help bar horizontally
+	centeredHelp := lipgloss.PlaceHorizontal(width, lipgloss.Center, helpBar)
+
+	// Calculate content height (leave room for help bar)
+	contentHeight := height - 2
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	// Place content in the available space
+	placedContent := lipgloss.Place(width, contentHeight, lipgloss.Left, lipgloss.Top, content)
+
+	// Join content and help bar vertically
+	return lipgloss.JoinVertical(lipgloss.Left, placedContent, centeredHelp)
 }
 
 // truncateLine truncates a line to fit within maxWidth
