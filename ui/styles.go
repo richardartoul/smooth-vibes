@@ -1,106 +1,162 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
 
-// Color palette - warm, friendly vibes
-var (
-	ColorPrimary    = lipgloss.Color("#FF6B6B") // Coral red
-	ColorSecondary  = lipgloss.Color("#4ECDC4") // Teal
-	ColorAccent     = lipgloss.Color("#FFE66D") // Sunny yellow
-	ColorSuccess    = lipgloss.Color("#95E77E") // Fresh green
-	ColorDanger     = lipgloss.Color("#FF6B6B") // Coral red
-	ColorMuted      = lipgloss.Color("#6C757D") // Gray
-	ColorBackground = lipgloss.Color("#2D3436") // Dark charcoal
-	ColorText       = lipgloss.Color("#DFE6E9") // Light gray
-	ColorHighlight  = lipgloss.Color("#A29BFE") // Lavender
+	"vc/config"
 )
 
-// Text styles
+// Color variables - updated by ApplyTheme
 var (
+	ColorPrimary    lipgloss.Color
+	ColorSecondary  lipgloss.Color
+	ColorAccent     lipgloss.Color
+	ColorSuccess    lipgloss.Color
+	ColorDanger     lipgloss.Color
+	ColorMuted      lipgloss.Color
+	ColorBackground lipgloss.Color
+	ColorText       lipgloss.Color
+	ColorHighlight  lipgloss.Color
+)
+
+// Text styles - updated by ApplyTheme
+var (
+	TitleStyle     lipgloss.Style
+	SubtitleStyle  lipgloss.Style
+	NormalStyle    lipgloss.Style
+	MutedStyle     lipgloss.Style
+	SuccessStyle   lipgloss.Style
+	ErrorStyle     lipgloss.Style
+	HighlightStyle lipgloss.Style
+)
+
+// Menu styles - updated by ApplyTheme
+var (
+	MenuItemStyle         lipgloss.Style
+	MenuItemSelectedStyle lipgloss.Style
+	MenuCursorStyle       lipgloss.Style
+)
+
+// Box styles - updated by ApplyTheme
+var (
+	BoxStyle       lipgloss.Style
+	HeaderBoxStyle lipgloss.Style
+)
+
+// Input styles - updated by ApplyTheme
+var (
+	InputStyle        lipgloss.Style
+	InputFocusedStyle lipgloss.Style
+)
+
+// List item styles - updated by ApplyTheme
+var (
+	ListItemStyle         lipgloss.Style
+	ListItemSelectedStyle lipgloss.Style
+	ListItemDescStyle     lipgloss.Style
+)
+
+func init() {
+	// Apply default theme on startup
+	ApplyTheme(config.CurrentTheme())
+}
+
+// ApplyTheme updates all styles based on the given theme
+func ApplyTheme(theme config.Theme) {
+	// Update colors
+	ColorPrimary = lipgloss.Color(theme.Primary)
+	ColorSecondary = lipgloss.Color(theme.Secondary)
+	ColorAccent = lipgloss.Color(theme.Accent)
+	ColorSuccess = lipgloss.Color(theme.Success)
+	ColorDanger = lipgloss.Color(theme.Danger)
+	ColorMuted = lipgloss.Color(theme.Muted)
+	ColorBackground = lipgloss.Color(theme.Background)
+	ColorText = lipgloss.Color(theme.Text)
+	ColorHighlight = lipgloss.Color(theme.Highlight)
+
+	// Update text styles
 	TitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorPrimary).
-			MarginBottom(1)
+		Bold(true).
+		Foreground(ColorPrimary).
+		MarginBottom(1)
 
 	SubtitleStyle = lipgloss.NewStyle().
-			Foreground(ColorSecondary).
-			Italic(true)
+		Foreground(ColorSecondary).
+		Italic(true)
 
 	NormalStyle = lipgloss.NewStyle().
-			Foreground(ColorText)
+		Foreground(ColorText)
 
 	MutedStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+		Foreground(ColorMuted)
 
 	SuccessStyle = lipgloss.NewStyle().
-			Foreground(ColorSuccess).
-			Bold(true)
+		Foreground(ColorSuccess).
+		Bold(true)
 
 	ErrorStyle = lipgloss.NewStyle().
-			Foreground(ColorDanger).
-			Bold(true)
+		Foreground(ColorDanger).
+		Bold(true)
 
 	HighlightStyle = lipgloss.NewStyle().
-			Foreground(ColorHighlight).
-			Bold(true)
-)
+		Foreground(ColorHighlight).
+		Bold(true)
 
-// Menu styles
-var (
+	// Update menu styles
 	MenuItemStyle = lipgloss.NewStyle().
-			PaddingLeft(2)
+		PaddingLeft(2)
 
 	MenuItemSelectedStyle = lipgloss.NewStyle().
-				PaddingLeft(2).
-				Foreground(ColorAccent).
-				Bold(true)
+		PaddingLeft(2).
+		Foreground(ColorAccent).
+		Bold(true)
 
 	MenuCursorStyle = lipgloss.NewStyle().
-			Foreground(ColorAccent).
-			Bold(true)
-)
+		Foreground(ColorAccent).
+		Bold(true)
 
-// Box styles
-var (
+	// Update box styles
 	BoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorSecondary).
-			Padding(1, 2)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorSecondary).
+		Padding(1, 2)
 
 	HeaderBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorPrimary).
-			Padding(0, 2).
-			MarginBottom(1)
-)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorPrimary).
+		Padding(0, 2).
+		MarginBottom(1)
 
-// Input styles
-var (
+	// Update input styles
 	InputStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(ColorSecondary).
-			Padding(0, 1)
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(ColorSecondary).
+		Padding(0, 1)
 
 	InputFocusedStyle = lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(ColorAccent).
-				Padding(0, 1)
-)
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(ColorAccent).
+		Padding(0, 1)
 
-// List item styles
-var (
+	// Update list item styles
 	ListItemStyle = lipgloss.NewStyle().
-			PaddingLeft(2)
+		PaddingLeft(2)
 
+	// Derive a subtle background from the theme
 	ListItemSelectedStyle = lipgloss.NewStyle().
-				PaddingLeft(2).
-				Foreground(ColorAccent).
-				Background(lipgloss.Color("#3D4446"))
+		PaddingLeft(2).
+		Foreground(ColorAccent).
+		Background(ColorBackground)
 
 	ListItemDescStyle = lipgloss.NewStyle().
-				Foreground(ColorMuted).
-				PaddingLeft(4)
-)
+		Foreground(ColorMuted).
+		PaddingLeft(4)
+}
+
+// ReloadTheme reloads the theme from config
+func ReloadTheme() {
+	ApplyTheme(config.CurrentTheme())
+}
 
 // Helper functions
 func RenderTitle(text string) string {

@@ -641,6 +641,29 @@ body {
     border-color: var(--accent-teal);
 }
 
+.setting-input-group select {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    cursor: pointer;
+    min-width: 160px;
+}
+
+.setting-input-group select:focus {
+    outline: none;
+    border-color: var(--accent-teal);
+}
+
+.setting-input-group select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 0.5rem;
+}
+
 /* Toggle Switch */
 .toggle-switch {
     position: relative;

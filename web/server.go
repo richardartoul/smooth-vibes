@@ -32,6 +32,7 @@ func StartServer(port int) error {
 	http.HandleFunc("/api/experiment/switch", handleSwitchExperiment)
 	http.HandleFunc("/api/gitignore", handleGitignore)
 	http.HandleFunc("/api/config", handleConfig)
+	http.HandleFunc("/api/themes", handleThemes)
 
 	// Static files
 	staticFS, err := fs.Sub(staticFiles, "static")
@@ -366,6 +367,23 @@ func handleGitignore(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
 
+func handleThemes(w http.ResponseWriter, r *http.Request) {
+	type themeInfo struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+
+	themes := make([]themeInfo, len(config.ThemeNames))
+	for i, id := range config.ThemeNames {
+		themes[i] = themeInfo{
+			ID:   id,
+			Name: config.Themes[id].Name,
+		}
+	}
+
+	jsonResponse(w, themes)
+}
+
 func handleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -378,9 +396,10 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	case "POST":
 		var req struct {
-			AutoSyncEnabled    *bool `json:"autoSyncEnabled,omitempty"`
-			MaxBackups         *int  `json:"maxBackups,omitempty"`
-			ExperimentsEnabled *bool `json:"experimentsEnabled,omitempty"`
+			AutoSyncEnabled    *bool   `json:"autoSyncEnabled,omitempty"`
+			MaxBackups         *int    `json:"maxBackups,omitempty"`
+			ExperimentsEnabled *bool   `json:"experimentsEnabled,omitempty"`
+			Theme              *string `json:"theme,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			errorResponse(w, "Invalid request", 400)
@@ -410,6 +429,12 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.ExperimentsEnabled != nil {
 			cfg.ExperimentsEnabled = *req.ExperimentsEnabled
+		}
+		if req.Theme != nil {
+			// Validate theme exists
+			if _, ok := config.Themes[*req.Theme]; ok {
+				cfg.Theme = *req.Theme
+			}
 		}
 
 		// Save updated config

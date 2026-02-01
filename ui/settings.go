@@ -98,7 +98,7 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 					m.cursor--
 				}
 			case key.Matches(msg, keys.Down):
-				if m.cursor < 2 { // 3 settings
+				if m.cursor < 3 { // 4 settings
 					m.cursor++
 				}
 			case key.Matches(msg, keys.Enter), msg.String() == " ":
@@ -114,6 +114,25 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 				case 2: // Experiments toggle
 					m.cfg.ExperimentsEnabled = !m.cfg.ExperimentsEnabled
 					m.dirty = true
+				case 3: // Theme - cycle to next
+					m.cfg.Theme = nextTheme(m.cfg.Theme)
+					m.dirty = true
+					// Apply theme immediately for preview
+					ApplyTheme(config.GetTheme(m.cfg.Theme))
+				}
+			case msg.String() == "right":
+				// Right arrow cycles theme forward
+				if m.cursor == 3 {
+					m.cfg.Theme = nextTheme(m.cfg.Theme)
+					m.dirty = true
+					ApplyTheme(config.GetTheme(m.cfg.Theme))
+				}
+			case msg.String() == "left":
+				// Left arrow cycles theme backward
+				if m.cursor == 3 {
+					m.cfg.Theme = prevTheme(m.cfg.Theme)
+					m.dirty = true
+					ApplyTheme(config.GetTheme(m.cfg.Theme))
 				}
 			case msg.String() == "s":
 				// Save settings
@@ -188,9 +207,17 @@ func (m SettingsModel) View() string {
 
 		if m.dirty {
 			s += HighlightStyle.Render("• Unsaved changes") + "\n\n"
-			s += HelpText("↑/↓: navigate • enter/space: toggle • s: save • esc: back")
+			if m.cursor == 3 {
+				s += HelpText("↑/↓: navigate • ←/→: cycle theme • enter: toggle • s: save • esc: back")
+			} else {
+				s += HelpText("↑/↓: navigate • enter: toggle • s: save • esc: back")
+			}
 		} else {
-			s += HelpText("↑/↓: navigate • enter/space: toggle • esc: back")
+			if m.cursor == 3 {
+				s += HelpText("↑/↓: navigate • ←/→: cycle theme • enter: toggle • esc: back")
+			} else {
+				s += HelpText("↑/↓: navigate • enter: toggle • esc: back")
+			}
 		}
 
 	case SettingsStateEditMaxBackups:
@@ -246,6 +273,11 @@ func (m SettingsModel) renderSettingsList() string {
 			description: "Enable experimental branches for trying new ideas",
 			value:       formatBool(m.cfg.ExperimentsEnabled),
 		},
+		{
+			name:        "Theme",
+			description: "Color scheme for the interface",
+			value:       config.GetTheme(m.cfg.Theme).Name,
+		},
 	}
 
 	for i, setting := range settings {
@@ -275,6 +307,31 @@ func formatBool(b bool) string {
 		return "On"
 	}
 	return "Off"
+}
+
+// nextTheme returns the next theme in the cycle
+func nextTheme(current string) string {
+	for i, name := range config.ThemeNames {
+		if name == current {
+			nextIdx := (i + 1) % len(config.ThemeNames)
+			return config.ThemeNames[nextIdx]
+		}
+	}
+	return config.ThemeNames[0]
+}
+
+// prevTheme returns the previous theme in the cycle
+func prevTheme(current string) string {
+	for i, name := range config.ThemeNames {
+		if name == current {
+			prevIdx := i - 1
+			if prevIdx < 0 {
+				prevIdx = len(config.ThemeNames) - 1
+			}
+			return config.ThemeNames[prevIdx]
+		}
+	}
+	return config.ThemeNames[0]
 }
 
 // IsDone returns true if the settings screen should close

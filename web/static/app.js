@@ -402,10 +402,18 @@ async function switchExperiment(branch) {
 // Settings
 async function loadConfig() {
     try {
+        // Load themes first
+        const themes = await api('/themes');
+        const themeSelect = document.getElementById('themeSelect');
+        themeSelect.innerHTML = themes.map(t => 
+            `<option value="${t.id}">${t.name}</option>`
+        ).join('');
+        
         const cfg = await api('/config');
         document.getElementById('autoSyncToggle').checked = cfg.autoSyncEnabled;
         document.getElementById('maxBackupsInput').value = cfg.maxBackups;
         document.getElementById('experimentsToggle').checked = cfg.experimentsEnabled;
+        document.getElementById('themeSelect').value = cfg.theme || 'coral';
         // Store original values to detect changes
         originalConfig = { ...cfg };
         settingsDirty = false;
@@ -429,9 +437,11 @@ function checkSettingsDirty() {
     const autoSyncEnabled = document.getElementById('autoSyncToggle').checked;
     const maxBackups = parseInt(document.getElementById('maxBackupsInput').value) || 10;
     const experimentsEnabled = document.getElementById('experimentsToggle').checked;
+    const theme = document.getElementById('themeSelect').value;
     settingsDirty = (autoSyncEnabled !== originalConfig.autoSyncEnabled) || 
                     (maxBackups !== originalConfig.maxBackups) ||
-                    (experimentsEnabled !== originalConfig.experimentsEnabled);
+                    (experimentsEnabled !== originalConfig.experimentsEnabled) ||
+                    (theme !== (originalConfig.theme || 'coral'));
     return settingsDirty;
 }
 
@@ -439,11 +449,12 @@ async function updateConfig() {
     const autoSyncEnabled = document.getElementById('autoSyncToggle').checked;
     const maxBackups = parseInt(document.getElementById('maxBackupsInput').value) || 10;
     const experimentsEnabled = document.getElementById('experimentsToggle').checked;
+    const theme = document.getElementById('themeSelect').value;
     
     try {
         const cfg = await api('/config', {
             method: 'POST',
-            body: JSON.stringify({ autoSyncEnabled, maxBackups, experimentsEnabled })
+            body: JSON.stringify({ autoSyncEnabled, maxBackups, experimentsEnabled, theme })
         });
         // Update original config after successful save
         originalConfig = { ...cfg };
