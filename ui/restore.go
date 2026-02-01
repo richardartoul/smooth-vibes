@@ -140,7 +140,7 @@ func (m RestoreModel) Update(msg tea.Msg) (RestoreModel, tea.Cmd) {
 func (m RestoreModel) View() string {
 	var s string
 
-	s += RenderTitle("Restore Previous State") + "\n\n"
+	s += RenderTitle("Revert to Previous State") + "\n\n"
 
 	switch m.state {
 	case RestoreStateEmpty:
@@ -149,7 +149,7 @@ func (m RestoreModel) View() string {
 		s += HelpText("Press any key to go back")
 
 	case RestoreStateList:
-		s += RenderSubtitle("Select a save point to restore:") + "\n\n"
+		s += RenderSubtitle("Select a save point to revert back to:") + "\n\n"
 
 		// Calculate maxVisible based on terminal height
 		// Each item takes ~3 lines, reserve ~8 lines for chrome (title, subtitle, help, borders)
