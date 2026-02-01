@@ -24,6 +24,7 @@ const (
 	ActionSave MenuAction = iota
 	ActionSync
 	ActionRestore
+	ActionBackups
 	ActionExperiments
 	ActionKeepExperiment
 	ActionAbandonExperiment
@@ -99,6 +100,11 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 	}
 
 	items = append(items,
+		MenuItem{
+			Title:       "Backups",
+			Description: "Restore from automatic backups created during reverts",
+			Action:      ActionBackups,
+		},
 		MenuItem{
 			Title:       "Experiments (advanced)",
 			Description: "Try new ideas without breaking your main work",
@@ -228,4 +234,3 @@ var keys = keyMap{
 		key.WithHelp("q", "quit"),
 	),
 }
-

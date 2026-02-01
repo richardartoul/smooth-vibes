@@ -338,3 +338,92 @@ func AbandonExperiment() error {
 	return DeleteBranch(currentBranch)
 }
 
+// BackupInfo represents a backup branch
+type BackupInfo struct {
+	Name       string
+	ForBranch  string
+	Timestamp  string
+	CommitHash string
+	Message    string
+}
+
+// CreateBackup creates a backup branch for the current state
+// Format: backup/<branch-name>/<timestamp>
+func CreateBackup(forBranch string) (string, error) {
+	timestamp := time.Now().Format("20060102-150405")
+	backupName := fmt.Sprintf("backup/%s/%s", forBranch, timestamp)
+	
+	// Create the backup branch at current HEAD without switching to it
+	_, err := Run("branch", backupName)
+	if err != nil {
+		return "", err
+	}
+	
+	return backupName, nil
+}
+
+// ListBackups returns all backups for a specific branch
+func ListBackups(forBranch string) ([]BackupInfo, error) {
+	prefix := fmt.Sprintf("backup/%s/", forBranch)
+	
+	// Get all branches matching the backup pattern
+	output, err := Run("branch", "--format=%(refname:short)")
+	if err != nil {
+		return nil, err
+	}
+
+	if output == "" {
+		return []BackupInfo{}, nil
+	}
+
+	var backups []BackupInfo
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, prefix) {
+			// Extract timestamp from branch name
+			timestamp := strings.TrimPrefix(line, prefix)
+			
+			// Get the commit info for this backup
+			commitInfo, err := Run("log", "-1", "--format=%h|%s", line)
+			if err != nil {
+				continue
+			}
+			
+			parts := strings.SplitN(commitInfo, "|", 2)
+			hash := ""
+			message := ""
+			if len(parts) >= 1 {
+				hash = parts[0]
+			}
+			if len(parts) >= 2 {
+				message = parts[1]
+			}
+			
+			backups = append(backups, BackupInfo{
+				Name:       line,
+				ForBranch:  forBranch,
+				Timestamp:  timestamp,
+				CommitHash: hash,
+				Message:    message,
+			})
+		}
+	}
+	
+	// Reverse to show newest first
+	for i, j := 0, len(backups)-1; i < j; i, j = i+1, j-1 {
+		backups[i], backups[j] = backups[j], backups[i]
+	}
+	
+	return backups, nil
+}
+
+// RestoreBackup restores from a backup branch
+func RestoreBackup(backupBranch string) error {
+	return ResetHard(backupBranch)
+}
+
+// DeleteBackup deletes a backup branch
+func DeleteBackup(backupBranch string) error {
+	return DeleteBranch(backupBranch)
+}
+

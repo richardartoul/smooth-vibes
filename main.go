@@ -19,6 +19,7 @@ const (
 	StateSave
 	StateSync
 	StateRestore
+	StateBackups
 	StateExperiments
 )
 
@@ -29,6 +30,7 @@ type Model struct {
 	save        ui.SaveModel
 	sync        ui.SyncModel
 	restore     ui.RestoreModel
+	backups     ui.BackupsModel
 	experiments ui.ExperimentsModel
 	width       int
 	height      int
@@ -64,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle escape to go back
 		if msg.String() == "esc" {
 			switch m.state {
-			case StateSave, StateSync, StateRestore:
+			case StateSave, StateSync, StateRestore, StateBackups:
 				m.state = StateMenu
 				m.menu.RefreshStatus()
 				return m, nil
@@ -92,6 +94,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = StateRestore
 				m.restore = ui.NewRestoreModel()
 				return m, m.restore.Init()
+			case ui.ActionBackups:
+				m.state = StateBackups
+				m.backups = ui.NewBackupsModel()
+				return m, m.backups.Init()
 			case ui.ActionExperiments:
 				m.state = StateExperiments
 				m.experiments = ui.NewExperimentsModel()
@@ -127,6 +133,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.menu.RefreshStatus()
 			return m, nil
 		}
+		if m.state == StateBackups && m.backups.IsDone() {
+			m.state = StateMenu
+			m.menu.RefreshStatus()
+			return m, nil
+		}
 		if m.state == StateExperiments && m.experiments.IsDone() {
 			// After keep/abandon, go back to main menu
 			if m.experiments.ShouldReturnToMainMenu() {
@@ -151,6 +162,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sync, cmd = m.sync.Update(msg)
 	case StateRestore:
 		m.restore, cmd = m.restore.Update(msg)
+	case StateBackups:
+		m.backups, cmd = m.backups.Update(msg)
 	case StateExperiments:
 		// Check if user wants to go back
 		if m.experiments.WantsBack() {
@@ -173,6 +186,8 @@ func (m Model) View() string {
 		return m.sync.View()
 	case StateRestore:
 		return m.restore.View()
+	case StateBackups:
+		return m.backups.View()
 	case StateExperiments:
 		return m.experiments.View()
 	default:

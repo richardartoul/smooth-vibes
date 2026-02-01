@@ -23,17 +23,20 @@ const (
 
 // RestoreModel is the model for the restore flow
 type RestoreModel struct {
-	commits  []git.CommitInfo
-	cursor   int
-	state    RestoreState
-	err      error
-	selected git.CommitInfo
+	commits    []git.CommitInfo
+	cursor     int
+	state      RestoreState
+	err        error
+	selected   git.CommitInfo
+	branch     string
+	backupName string
 }
 
 // NewRestoreModel creates a new restore model
 func NewRestoreModel() RestoreModel {
 	commits, err := git.Log(20)
-	
+	branch, _ := git.CurrentBranch()
+
 	state := RestoreStateList
 	if err != nil || len(commits) == 0 {
 		state = RestoreStateEmpty
@@ -43,6 +46,7 @@ func NewRestoreModel() RestoreModel {
 		commits: commits,
 		cursor:  0,
 		state:   state,
+		branch:  branch,
 	}
 }
 
@@ -53,14 +57,26 @@ func (m RestoreModel) Init() tea.Cmd {
 
 // RestoreMsg is sent when a restore operation completes
 type RestoreMsg struct {
-	Err error
+	Err        error
+	BackupName string
 }
 
-// doRestore performs the actual git reset
-func doRestore(commitHash string) tea.Cmd {
+// doRestore creates a backup then performs the git reset
+func doRestore(commitHash string, branch string) tea.Cmd {
 	return func() tea.Msg {
-		err := git.ResetHard(commitHash)
-		return RestoreMsg{Err: err}
+		// Create a backup first
+		backupName, err := git.CreateBackup(branch)
+		if err != nil {
+			return RestoreMsg{Err: fmt.Errorf("failed to create backup: %w", err)}
+		}
+
+		// Now do the reset
+		err = git.ResetHard(commitHash)
+		if err != nil {
+			return RestoreMsg{Err: err, BackupName: backupName}
+		}
+
+		return RestoreMsg{Err: nil, BackupName: backupName}
 	}
 }
 
@@ -68,6 +84,7 @@ func doRestore(commitHash string) tea.Cmd {
 func (m RestoreModel) Update(msg tea.Msg) (RestoreModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RestoreMsg:
+		m.backupName = msg.BackupName
 		if msg.Err != nil {
 			m.state = RestoreStateError
 			m.err = msg.Err
@@ -97,7 +114,7 @@ func (m RestoreModel) Update(msg tea.Msg) (RestoreModel, tea.Cmd) {
 			switch msg.String() {
 			case "y", "Y":
 				m.state = RestoreStateRestoring
-				return m, doRestore(m.selected.FullHash)
+				return m, doRestore(m.selected.FullHash, m.branch)
 			case "n", "N", "esc":
 				m.state = RestoreStateList
 			}
@@ -136,7 +153,7 @@ func (m RestoreModel) View() string {
 			if len(line) > 60 {
 				line = line[:57] + "..."
 			}
-			
+
 			s += cursor + style.Render(line) + "\n"
 			s += "    " + MutedStyle.Render(commit.Timestamp) + "\n\n"
 		}
@@ -147,14 +164,16 @@ func (m RestoreModel) View() string {
 		s += RenderError("⚠ Warning: This will discard current changes!") + "\n\n"
 		s += "Restore to: " + HighlightStyle.Render(m.selected.Hash) + "\n"
 		s += RenderMuted(m.selected.Message) + "\n\n"
+		s += RenderMuted("A backup will be created before restoring.") + "\n\n"
 		s += RenderSubtitle("Are you sure? (y/n)") + "\n"
 
 	case RestoreStateRestoring:
-		s += RenderHighlight("Restoring...") + "\n"
+		s += RenderHighlight("Creating backup and restoring...") + "\n"
 
 	case RestoreStateSuccess:
 		s += RenderSuccess("✓ Restored!") + "\n\n"
-		s += RenderMuted("Your project has been restored to the selected state.") + "\n\n"
+		s += RenderMuted("Your project has been restored to the selected state.") + "\n"
+		s += RenderMuted("Backup created: ") + MutedStyle.Render(m.backupName) + "\n\n"
 		s += HelpText("Press any key to continue")
 
 	case RestoreStateError:
@@ -172,4 +191,3 @@ func (m RestoreModel) View() string {
 func (m RestoreModel) IsDone() bool {
 	return m.state == RestoreStateSuccess || m.state == RestoreStateError || m.state == RestoreStateEmpty
 }
-
