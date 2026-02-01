@@ -98,7 +98,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle enter on menu (only when not focused on changes panel)
 		if msg.String() == "enter" && m.state == StateMenu && !m.menu.IsFocusedOnChanges() {
-			switch m.menu.SelectedAction() {
+			action := m.menu.SelectedAction()
+			if action < 0 {
+				// Invalid action (focused on changes panel), skip
+				break
+			}
+			switch action {
 			case ui.ActionQuicksave:
 				m.state = StateQuicksave
 				m.quicksave = ui.NewQuicksaveModel(m.menu.GetFileActions())
