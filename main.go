@@ -276,14 +276,14 @@ func generateTestData() {
 		"grows", "shrinks", "opens", "closes", "starts", "stops", "moves", "stays",
 	}
 
-	// Build list of all directories to use
+	// Build list of all directories to use (in root dir for realistic testing)
 	var dirs []string
 	for _, base := range baseDirs {
 		for _, sub := range subDirs {
 			if sub == "" {
-				dirs = append(dirs, filepath.Join("_testdata", base))
+				dirs = append(dirs, base)
 			} else {
-				dirs = append(dirs, filepath.Join("_testdata", base, sub))
+				dirs = append(dirs, filepath.Join(base, sub))
 			}
 		}
 	}
@@ -345,8 +345,8 @@ func generateTestData() {
 		}
 	}
 
-	fmt.Printf("\n✓ Generated %d test files across %d directories in _testdata/\n", totalFiles, len(dirs))
-	fmt.Println("\nTo clean up later, run: rm -rf _testdata/")
+	fmt.Printf("\n✓ Generated %d test files across %d directories\n", totalFiles, len(dirs))
+	fmt.Println("\nTo clean up later, run: rm -rf src lib pkg internal cmd api web docs scripts tools test spec bench examples vendor")
 }
 
 func main() {
