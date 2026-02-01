@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -162,17 +163,15 @@ func (m BackupsModel) View() string {
 				style = ListItemSelectedStyle
 			}
 
-			// Format timestamp nicely
-			timestamp := formatBackupTimestamp(backup.Timestamp)
-
-			// Format: timestamp - message
-			line := fmt.Sprintf("%s  %s", timestamp, backup.Message)
-			if len(line) > 55 {
-				line = line[:52] + "..."
+			// Format: hash + message (like revert view)
+			line := fmt.Sprintf("%s %s", backup.CommitHash, backup.Message)
+			if len(line) > 45 {
+				line = line[:42] + "..."
 			}
 
 			s += cursor + style.Render(line) + "\n"
-			s += "    " + MutedStyle.Render(backup.CommitHash) + "\n\n"
+			// Show human-friendly relative timestamp below
+			s += "    " + MutedStyle.Render(formatBackupTimestampRelative(backup.Timestamp)) + "\n\n"
 		}
 
 		if len(m.backups) > maxVisible {
@@ -183,8 +182,9 @@ func (m BackupsModel) View() string {
 
 	case BackupsStateConfirm:
 		s += RenderError("⚠ Warning: This will discard current changes!") + "\n\n"
-		s += "Restore backup from: " + HighlightStyle.Render(formatBackupTimestamp(m.selected.Timestamp)) + "\n"
-		s += RenderMuted(m.selected.Message) + "\n\n"
+		s += "Restore backup: " + HighlightStyle.Render(m.selected.CommitHash) + "\n"
+		s += RenderMuted(m.selected.Message) + "\n"
+		s += RenderMuted(formatBackupTimestampRelative(m.selected.Timestamp)) + "\n\n"
 		s += RenderSubtitle("Are you sure? (y/n)") + "\n"
 
 	case BackupsStateRestoring:
@@ -216,11 +216,68 @@ func formatBackupTimestamp(timestamp string) string {
 	// Input format: 20060102-150405
 	if len(timestamp) >= 15 {
 		date := timestamp[:8]
-		time := timestamp[9:15]
+		timeStr := timestamp[9:15]
 		// Format as: 2006-01-02 15:04:05
 		return fmt.Sprintf("%s-%s-%s %s:%s:%s",
 			date[:4], date[4:6], date[6:8],
-			time[:2], time[2:4], time[4:6])
+			timeStr[:2], timeStr[2:4], timeStr[4:6])
 	}
 	return timestamp
+}
+
+// formatBackupTimestampRelative formats the timestamp as a human-friendly relative time
+func formatBackupTimestampRelative(timestamp string) string {
+	// Input format: 20060102-150405
+	if len(timestamp) < 15 {
+		return timestamp
+	}
+
+	// Parse the timestamp
+	t, err := time.ParseInLocation("20060102-150405", timestamp, time.Local)
+	if err != nil {
+		return timestamp
+	}
+
+	now := time.Now()
+	diff := now.Sub(t)
+
+	// Convert to human-friendly format
+	switch {
+	case diff < time.Minute:
+		secs := int(diff.Seconds())
+		if secs == 1 {
+			return "1 second ago"
+		}
+		return fmt.Sprintf("%d seconds ago", secs)
+	case diff < time.Hour:
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	case diff < 24*time.Hour:
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	case diff < 7*24*time.Hour:
+		days := int(diff.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	case diff < 30*24*time.Hour:
+		weeks := int(diff.Hours() / 24 / 7)
+		if weeks == 1 {
+			return "1 week ago"
+		}
+		return fmt.Sprintf("%d weeks ago", weeks)
+	default:
+		months := int(diff.Hours() / 24 / 30)
+		if months == 1 {
+			return "1 month ago"
+		}
+		return fmt.Sprintf("%d months ago", months)
+	}
 }

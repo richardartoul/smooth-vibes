@@ -5,7 +5,7 @@ Version control for vibe coders. A friendly TUI and web interface for git.
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/smooth/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/richardartoul/smooth-vibes/main/install.sh | sh
 ```
 
 ### Other methods
@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/smooth/main/install.s
 <summary>Using Go</summary>
 
 ```bash
-go install github.com/YOUR_USERNAME/smooth@latest
+go install github.com/richard-artoul/smooth-vibes@latest
 ```
 </details>
 
@@ -39,12 +39,6 @@ go build -o smooth .
 ```bash
 # Start the TUI interface
 smooth
-
-# Start the web interface (http://localhost:3000)
-smooth web
-
-# Show help
-smooth help
 ```
 
 ## Requirements
