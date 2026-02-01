@@ -99,6 +99,7 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 		)
 	}
 
+	// This is a comment to show troy that it works.
 	items = append(items,
 		MenuItem{
 			Title:       "Backups",
