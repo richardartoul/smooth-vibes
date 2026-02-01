@@ -32,6 +32,7 @@ type MenuAction int
 const (
 	ActionSave MenuAction = iota
 	ActionSaveV2
+	ActionQuicksave
 	ActionSync
 	ActionRestore
 	ActionBackups
@@ -111,6 +112,11 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 			Title:       saveTitle + " (v2)",
 			Description: "Experimental: choose save/revert/skip/ignore per file",
 			Action:      ActionSaveV2,
+		},
+		{
+			Title:       "Quicksave",
+			Description: "Save everything instantly with no prompts",
+			Action:      ActionQuicksave,
 		},
 		{
 			Title:       revertTitle,
