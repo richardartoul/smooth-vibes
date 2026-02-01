@@ -100,7 +100,7 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 
 	items = append(items,
 		MenuItem{
-			Title:       "Experiments",
+			Title:       "Experiments (advanced)",
 			Description: "Try new ideas without breaking your main work",
 			Action:      ActionExperiments,
 		},
