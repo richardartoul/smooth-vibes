@@ -29,6 +29,8 @@ type BackupsModel struct {
 	err      error
 	selected git.BackupInfo
 	branch   string
+	width    int
+	height   int
 }
 
 // NewBackupsModel creates a new backups model
@@ -70,6 +72,11 @@ func doRestoreBackup(backupBranch string) tea.Cmd {
 // Update handles messages for the backups model
 func (m BackupsModel) Update(msg tea.Msg) (BackupsModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
 	case BackupsMsg:
 		if msg.Err != nil {
 			m.state = BackupsStateError
@@ -127,7 +134,19 @@ func (m BackupsModel) View() string {
 	case BackupsStateList:
 		s += RenderSubtitle("Select a backup to restore:") + "\n\n"
 
+		// Calculate maxVisible based on terminal height
 		maxVisible := 8
+		if m.height > 0 {
+			available := m.height - 12 // Reserve space for chrome
+			maxVisible = available / 3 // Each item is ~3 lines
+			if maxVisible < 2 {
+				maxVisible = 2
+			}
+			if maxVisible > 12 {
+				maxVisible = 12
+			}
+		}
+
 		start := 0
 		if m.cursor >= maxVisible {
 			start = m.cursor - maxVisible + 1

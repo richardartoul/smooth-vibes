@@ -31,6 +31,8 @@ type RestoreModel struct {
 	selected   git.CommitInfo
 	branch     string
 	backupName string
+	width      int
+	height     int
 }
 
 // NewRestoreModel creates a new restore model
@@ -88,6 +90,11 @@ func doRestore(commitHash string, branch string) tea.Cmd {
 // Update handles messages for the restore model
 func (m RestoreModel) Update(msg tea.Msg) (RestoreModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
 	case RestoreMsg:
 		m.backupName = msg.BackupName
 		if msg.Err != nil {
@@ -144,7 +151,20 @@ func (m RestoreModel) View() string {
 	case RestoreStateList:
 		s += RenderSubtitle("Select a save point to restore:") + "\n\n"
 
+		// Calculate maxVisible based on terminal height
+		// Each item takes ~3 lines, reserve ~8 lines for chrome (title, subtitle, help, borders)
 		maxVisible := 8
+		if m.height > 0 {
+			available := m.height - 10 // Reserve space for chrome
+			maxVisible = available / 3 // Each item is ~3 lines
+			if maxVisible < 2 {
+				maxVisible = 2
+			}
+			if maxVisible > 12 {
+				maxVisible = 12
+			}
+		}
+
 		start := 0
 		if m.cursor >= maxVisible {
 			start = m.cursor - maxVisible + 1

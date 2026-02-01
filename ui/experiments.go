@@ -51,6 +51,8 @@ type ExperimentsModel struct {
 	err           error
 	message       string
 	blockedAction ExperimentsAction // action that was blocked by unsaved changes
+	width         int
+	height        int
 }
 
 type experimentsMenuItem struct {
@@ -223,6 +225,11 @@ func (m ExperimentsModel) Update(msg tea.Msg) (ExperimentsModel, tea.Cmd) {
 	menuItems := m.getMenuItems()
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
 	case ExperimentsMsg:
 		if msg.Err != nil {
 			m.state = ExperimentsStateError
@@ -409,7 +416,19 @@ func (m ExperimentsModel) View() string {
 		// Also show main as an option
 		allOptions := append([]git.BranchInfo{{Name: git.GetMainBranch(), IsCurrent: m.isOnMain}}, m.experiments...)
 
+		// Calculate maxVisible based on terminal height
 		maxVisible := 10
+		if m.height > 0 {
+			available := m.height - 10 // Reserve space for chrome
+			maxVisible = available / 2  // Each item is ~2 lines
+			if maxVisible < 3 {
+				maxVisible = 3
+			}
+			if maxVisible > 15 {
+				maxVisible = 15
+			}
+		}
+
 		start := 0
 		if m.expCursor >= maxVisible {
 			start = m.expCursor - maxVisible + 1
