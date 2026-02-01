@@ -271,16 +271,10 @@ func (m MenuModel) View() string {
 	// If no split view, just return the menu
 	if !showDiffPanel {
 		content := lipgloss.NewStyle().
-			Width(m.width).
 			Padding(1, 2).
 			Render(leftContent)
-		// Constrain height to terminal size
-		if m.height > 0 {
-			content = lipgloss.NewStyle().
-				MaxHeight(m.height).
-				Render(content)
-		}
-		return content
+		// Place content in a fixed-size frame to ensure clean redraws on resize
+		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 	}
 
 	// Calculate widths for split layout
@@ -290,8 +284,15 @@ func (m MenuModel) View() string {
 	}
 	rightWidth := m.width - leftWidth - 4
 
+	// Use available height minus some margin
+	panelHeight := m.height - 2
+	if panelHeight < 10 {
+		panelHeight = 10
+	}
+
 	leftPanel := lipgloss.NewStyle().
 		Width(leftWidth).
+		Height(panelHeight).
 		Padding(1, 2).
 		Render(leftContent)
 
@@ -301,7 +302,7 @@ func (m MenuModel) View() string {
 
 	// Format and truncate diff for display
 	diffLines := strings.Split(m.diff, "\n")
-	maxLines := m.height - 10
+	maxLines := panelHeight - 10
 	if maxLines < 10 {
 		maxLines = 10
 	}
@@ -351,6 +352,7 @@ func (m MenuModel) View() string {
 
 	rightPanel := lipgloss.NewStyle().
 		Width(rightWidth).
+		Height(panelHeight-4). // Account for border
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorSecondary).
@@ -359,14 +361,8 @@ func (m MenuModel) View() string {
 	// Join panels horizontally
 	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	// Constrain height to terminal size
-	if m.height > 0 {
-		combined = lipgloss.NewStyle().
-			MaxHeight(m.height).
-			Render(combined)
-	}
-
-	return combined
+	// Place in a fixed-size frame to ensure clean redraws on resize
+	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, combined)
 }
 
 // truncateLine truncates a line to fit within maxWidth
