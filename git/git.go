@@ -170,6 +170,41 @@ func HasChanges() bool {
 	return output != ""
 }
 
+// GetDiff returns the current diff output
+func GetDiff() string {
+	// Get diff of staged and unstaged changes
+	output, err := Run("diff", "HEAD", "--stat")
+	if err != nil || output == "" {
+		// Try without HEAD for new repos
+		output, _ = Run("diff", "--stat")
+	}
+	if output == "" {
+		// Check for untracked files
+		status, _ := Run("status", "--short")
+		if status != "" {
+			return status
+		}
+		return "No changes"
+	}
+	return output
+}
+
+// GetDiffFull returns the full diff output (not just stats)
+func GetDiffFull() string {
+	output, err := Run("diff", "HEAD", "--color=never")
+	if err != nil || output == "" {
+		output, _ = Run("diff", "--color=never")
+	}
+	if output == "" {
+		status, _ := Run("status", "--short")
+		if status != "" {
+			return status
+		}
+		return "No changes"
+	}
+	return output
+}
+
 // FileChange represents a changed file
 type FileChange struct {
 	Status string // "added", "modified", "deleted", "renamed"

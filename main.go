@@ -56,7 +56,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m, nil
+		// Pass size to menu (always, since we might return to it)
+		m.menu.SetSize(msg.Width, msg.Height)
+		// Continue processing to let sub-models handle it too
 
 	case tea.KeyMsg:
 		// Global quit

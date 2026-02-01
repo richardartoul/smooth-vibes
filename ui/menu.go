@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -38,6 +39,9 @@ type MenuModel struct {
 	branch     string
 	hasChanges bool
 	isOnMain   bool
+	diff       string
+	width      int
+	height     int
 }
 
 // NewMenuModel creates a new menu model
@@ -45,12 +49,16 @@ func NewMenuModel() MenuModel {
 	branch, _ := git.CurrentBranch()
 	hasChanges := git.HasChanges()
 	isOnMain := git.IsOnMain()
+	diff := git.GetDiff()
 
 	m := MenuModel{
 		cursor:     0,
 		branch:     branch,
 		hasChanges: hasChanges,
 		isOnMain:   isOnMain,
+		diff:       diff,
+		width:      120, // Default to wide, will be updated by WindowSizeMsg
+		height:     30,
 	}
 	m.items = m.buildMenuItems()
 	return m
@@ -134,6 +142,9 @@ func (m MenuModel) Init() tea.Cmd {
 // Update handles messages for the menu model
 func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Up):
@@ -151,10 +162,19 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 
 // View renders the menu
 func (m MenuModel) View() string {
-	var s string
+	// Determine if we should show split view (need at least 90 chars wide)
+	showDiffPanel := m.width >= 90
 
-	// Banner
-	s += Banner() + "\n\n"
+	// === LEFT PANEL: Menu ===
+	var leftContent string
+
+	// Banner (skip if narrow or short terminal)
+	if m.width >= 60 && m.height >= 30 {
+		leftContent += Banner() + "\n\n"
+	} else if m.height >= 20 {
+		leftContent += TitleStyle.Render("SMOOTH") + "\n\n"
+	}
+	// Skip title entirely if very short
 
 	// Status bar
 	branchDisplay := m.branch
@@ -165,12 +185,14 @@ func (m MenuModel) View() string {
 	if m.hasChanges {
 		statusText += " " + SuccessStyle.Render("(unsaved changes)")
 	}
-	s += HeaderBoxStyle.Render(statusText) + "\n\n"
+	leftContent += HeaderBoxStyle.Render(statusText) + "\n\n"
 
 	// Title
-	s += RenderTitle("What would you like to do?") + "\n\n"
+	leftContent += RenderTitle("What would you like to do?") + "\n\n"
 
 	// Menu items
+	// Hide descriptions if narrow OR short terminal
+	showDescriptions := m.width >= 60 && m.height >= 25
 	for i, item := range m.items {
 		cursor := "  "
 		style := MenuItemStyle
@@ -181,15 +203,127 @@ func (m MenuModel) View() string {
 		}
 
 		title := style.Render(item.Title)
-		desc := MutedStyle.Render("  " + item.Description)
-
-		s += cursor + title + "\n" + desc + "\n\n"
+		if showDescriptions {
+			desc := MutedStyle.Render("  " + item.Description)
+			leftContent += cursor + title + "\n" + desc + "\n\n"
+		} else {
+			leftContent += cursor + title + "\n"
+		}
 	}
 
 	// Help
-	s += HelpText("↑/↓: navigate • enter: select • q: quit")
+	leftContent += "\n" + HelpText("↑/↓: navigate • enter: select • q: quit")
 
-	return lipgloss.NewStyle().Padding(1, 2).Render(s)
+	// If no split view, just return the menu
+	if !showDiffPanel {
+		content := lipgloss.NewStyle().
+			Width(m.width).
+			Padding(1, 2).
+			Render(leftContent)
+		// Constrain height to terminal size
+		if m.height > 0 {
+			content = lipgloss.NewStyle().
+				MaxHeight(m.height).
+				Render(content)
+		}
+		return content
+	}
+
+	// Calculate widths for split layout
+	leftWidth := m.width / 2
+	if leftWidth < 50 {
+		leftWidth = 50
+	}
+	rightWidth := m.width - leftWidth - 4
+
+	leftPanel := lipgloss.NewStyle().
+		Width(leftWidth).
+		Padding(1, 2).
+		Render(leftContent)
+
+	// === RIGHT PANEL: Diff ===
+	var rightContent string
+	rightContent += RenderSubtitle("Current Changes") + "\n\n"
+
+	// Format and truncate diff for display
+	diffLines := strings.Split(m.diff, "\n")
+	maxLines := m.height - 10
+	if maxLines < 10 {
+		maxLines = 10
+	}
+	if maxLines > 30 {
+		maxLines = 30
+	}
+
+	lineCount := 0
+	for _, line := range diffLines {
+		if lineCount >= maxLines {
+			remaining := len(diffLines) - lineCount
+			if remaining > 0 {
+				rightContent += MutedStyle.Render(fmt.Sprintf("... and %d more lines", remaining)) + "\n"
+			}
+			break
+		}
+		// Skip empty lines at start
+		if lineCount == 0 && line == "" {
+			continue
+		}
+		// Color-code diff lines
+		displayLine := truncateLine(line, rightWidth-6)
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			rightContent += SuccessStyle.Render(displayLine) + "\n"
+		} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+			rightContent += ErrorStyle.Render(displayLine) + "\n"
+		} else if strings.HasPrefix(line, "@@") {
+			rightContent += HighlightStyle.Render(displayLine) + "\n"
+		} else if strings.HasPrefix(line, " M ") || strings.HasPrefix(line, "?? ") || strings.HasPrefix(line, " A ") || strings.HasPrefix(line, " D ") || strings.HasPrefix(line, "M ") || strings.HasPrefix(line, "A ") {
+			// Git status short format
+			if strings.HasPrefix(line, "?? ") || strings.HasPrefix(line, " A ") || strings.HasPrefix(line, "A ") {
+				rightContent += SuccessStyle.Render(displayLine) + "\n"
+			} else if strings.HasPrefix(line, " D ") || strings.HasPrefix(line, "D ") {
+				rightContent += ErrorStyle.Render(displayLine) + "\n"
+			} else {
+				rightContent += HighlightStyle.Render(displayLine) + "\n"
+			}
+		} else {
+			rightContent += MutedStyle.Render(displayLine) + "\n"
+		}
+		lineCount++
+	}
+
+	if m.diff == "" || m.diff == "No changes" {
+		rightContent += MutedStyle.Render("No uncommitted changes") + "\n"
+	}
+
+	rightPanel := lipgloss.NewStyle().
+		Width(rightWidth).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorSecondary).
+		Render(rightContent)
+
+	// Join panels horizontally
+	combined := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+
+	// Constrain height to terminal size
+	if m.height > 0 {
+		combined = lipgloss.NewStyle().
+			MaxHeight(m.height).
+			Render(combined)
+	}
+
+	return combined
+}
+
+// truncateLine truncates a line to fit within maxWidth
+func truncateLine(line string, maxWidth int) string {
+	if maxWidth < 10 {
+		maxWidth = 10
+	}
+	if len(line) > maxWidth {
+		return line[:maxWidth-3] + "..."
+	}
+	return line
 }
 
 // SelectedAction returns the currently selected action
@@ -202,11 +336,18 @@ func (m *MenuModel) RefreshStatus() {
 	m.branch, _ = git.CurrentBranch()
 	m.hasChanges = git.HasChanges()
 	m.isOnMain = git.IsOnMain()
+	m.diff = git.GetDiff()
 	m.items = m.buildMenuItems()
 	// Reset cursor if it's out of bounds
 	if m.cursor >= len(m.items) {
 		m.cursor = len(m.items) - 1
 	}
+}
+
+// SetSize updates the terminal dimensions
+func (m *MenuModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
 }
 
 // Key bindings
