@@ -66,8 +66,9 @@ type MenuModel struct {
 	fileCursor       int
 	expandedFiles    map[string]bool
 	fileDiffs        map[string]string
-	diffScrollOffset map[string]int        // Scroll offset per file
-	fileActions      map[string]FileAction // Action for each file (Save/Revert/Skip/Ignore)
+	diffScrollOffset map[string]int          // Scroll offset per file
+	fileActions      map[string]FileAction   // Action for each file (Save/Revert/Skip/Ignore)
+	diffStats        map[string]git.DiffStat // Line additions/deletions per file
 }
 
 // NewMenuModel creates a new menu model
@@ -82,6 +83,16 @@ func NewMenuModel() MenuModel {
 	fileActions := make(map[string]FileAction)
 	for _, f := range changedFiles {
 		fileActions[f.Path] = FileActionSave
+	}
+
+	// Load diff stats for line counts
+	diffStats := make(map[string]git.DiffStat)
+	if stats, err := git.GetUncommittedDiffStat(); err == nil {
+		for _, stat := range stats.Files {
+			// Clean up path (remove " (new)" suffix if present)
+			path := strings.TrimSuffix(stat.Path, " (new)")
+			diffStats[path] = stat
+		}
 	}
 
 	m := MenuModel{
@@ -99,6 +110,7 @@ func NewMenuModel() MenuModel {
 		fileDiffs:        make(map[string]string),
 		diffScrollOffset: make(map[string]int),
 		fileActions:      fileActions,
+		diffStats:        diffStats,
 	}
 	m.items = m.buildMenuItems()
 	return m
@@ -216,6 +228,14 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 		for _, f := range m.changedFiles {
 			if _, exists := m.fileActions[f.Path]; !exists {
 				m.fileActions[f.Path] = FileActionSave
+			}
+		}
+		// Refresh diff stats
+		if stats, err := git.GetUncommittedDiffStat(); err == nil {
+			m.diffStats = make(map[string]git.DiffStat)
+			for _, stat := range stats.Files {
+				path := strings.TrimSuffix(stat.Path, " (new)")
+				m.diffStats[path] = stat
 			}
 		}
 		// Schedule next tick
@@ -564,9 +584,33 @@ func (m MenuModel) View() string {
 				expandIcon = "▼"
 			}
 
-			// Truncate filename if needed (account for badge width)
-			displayPath := truncateLine(file.Path, rightWidth-20)
-			rightContent += cursor + actionBadge + " " + MutedStyle.Render(expandIcon) + " " + statusIcon + " " + fileStyle.Render(displayPath) + "\n"
+			// Format diff stats (additions/deletions)
+			var diffStatStr string
+			if stat, ok := m.diffStats[file.Path]; ok {
+				if stat.IsBinary {
+					diffStatStr = MutedStyle.Render(" [binary]")
+				} else if stat.Additions > 0 || stat.Deletions > 0 {
+					addStr := ""
+					delStr := ""
+					if stat.Additions > 0 {
+						addStr = SuccessStyle.Render(fmt.Sprintf("+%d", stat.Additions))
+					}
+					if stat.Deletions > 0 {
+						delStr = ErrorStyle.Render(fmt.Sprintf("-%d", stat.Deletions))
+					}
+					if addStr != "" && delStr != "" {
+						diffStatStr = " " + addStr + " " + delStr
+					} else if addStr != "" {
+						diffStatStr = " " + addStr
+					} else if delStr != "" {
+						diffStatStr = " " + delStr
+					}
+				}
+			}
+
+			// Truncate filename if needed (account for badge width and diff stats)
+			displayPath := truncateLine(file.Path, rightWidth-30)
+			rightContent += cursor + actionBadge + " " + MutedStyle.Render(expandIcon) + " " + statusIcon + " " + fileStyle.Render(displayPath) + diffStatStr + "\n"
 			lineCount++
 
 			// Show diff if expanded
@@ -795,6 +839,14 @@ func (m *MenuModel) RefreshStatus() tea.Cmd {
 	m.fileActions = make(map[string]FileAction)
 	for _, f := range m.changedFiles {
 		m.fileActions[f.Path] = FileActionSave
+	}
+	// Refresh diff stats
+	m.diffStats = make(map[string]git.DiffStat)
+	if stats, err := git.GetUncommittedDiffStat(); err == nil {
+		for _, stat := range stats.Files {
+			path := strings.TrimSuffix(stat.Path, " (new)")
+			m.diffStats[path] = stat
+		}
 	}
 	// Return tick command to restart periodic refresh
 	return tickCmd()
