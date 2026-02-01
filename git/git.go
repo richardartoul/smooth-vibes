@@ -671,6 +671,133 @@ func RevertFiles(paths []string) error {
 	return err
 }
 
+// DiffStat represents the diff statistics for a file
+type DiffStat struct {
+	Path      string
+	Additions int
+	Deletions int
+	IsBinary  bool
+}
+
+// CommitDiffSummary represents the summary of changes between commits
+type CommitDiffSummary struct {
+	Files        []DiffStat
+	TotalAdded   int
+	TotalDeleted int
+}
+
+// GetDiffStatBetweenCommits returns the diff stats between two commits
+// If toHash is empty, compares fromHash to HEAD
+func GetDiffStatBetweenCommits(fromHash, toHash string) (CommitDiffSummary, error) {
+	var summary CommitDiffSummary
+
+	// Build the diff command
+	args := []string{"diff", "--numstat"}
+	if toHash == "" {
+		args = append(args, fromHash)
+	} else {
+		args = append(args, fromHash, toHash)
+	}
+
+	output, err := Run(args...)
+	if err != nil {
+		return summary, err
+	}
+
+	if output == "" {
+		return summary, nil
+	}
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) < 3 {
+			continue
+		}
+
+		stat := DiffStat{
+			Path: parts[2],
+		}
+
+		// Binary files show "-" for additions/deletions
+		if parts[0] == "-" {
+			stat.IsBinary = true
+		} else {
+			fmt.Sscanf(parts[0], "%d", &stat.Additions)
+			fmt.Sscanf(parts[1], "%d", &stat.Deletions)
+			summary.TotalAdded += stat.Additions
+			summary.TotalDeleted += stat.Deletions
+		}
+
+		summary.Files = append(summary.Files, stat)
+	}
+
+	return summary, nil
+}
+
+// GetUncommittedDiffStat returns the diff stats for uncommitted changes
+func GetUncommittedDiffStat() (CommitDiffSummary, error) {
+	var summary CommitDiffSummary
+
+	// Get diff stats for tracked files
+	output, err := Run("diff", "--numstat", "HEAD")
+	if err != nil {
+		// Try without HEAD for new repos
+		output, _ = Run("diff", "--numstat")
+	}
+
+	if output != "" {
+		lines := strings.Split(output, "\n")
+		for _, line := range lines {
+			if line == "" {
+				continue
+			}
+
+			parts := strings.Fields(line)
+			if len(parts) < 3 {
+				continue
+			}
+
+			stat := DiffStat{
+				Path: parts[2],
+			}
+
+			if parts[0] == "-" {
+				stat.IsBinary = true
+			} else {
+				fmt.Sscanf(parts[0], "%d", &stat.Additions)
+				fmt.Sscanf(parts[1], "%d", &stat.Deletions)
+				summary.TotalAdded += stat.Additions
+				summary.TotalDeleted += stat.Deletions
+			}
+
+			summary.Files = append(summary.Files, stat)
+		}
+	}
+
+	// Also get untracked files
+	status, _ := Run("status", "--porcelain")
+	if status != "" {
+		for _, line := range strings.Split(status, "\n") {
+			if strings.HasPrefix(line, "?? ") {
+				path := strings.TrimPrefix(line, "?? ")
+				lineCount := countFileLines(path)
+				summary.Files = append(summary.Files, DiffStat{
+					Path:      path + " (new)",
+					Additions: lineCount,
+				})
+				summary.TotalAdded += lineCount
+			}
+		}
+	}
+
+	return summary, nil
+}
+
 // TrimBackups removes old backups beyond the maxCount limit for a branch
 // Keeps the newest backups and deletes the oldest ones
 func TrimBackups(forBranch string, maxCount int) error {

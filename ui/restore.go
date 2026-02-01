@@ -2,9 +2,11 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"vc/config"
 	"vc/git"
@@ -24,15 +26,19 @@ const (
 
 // RestoreModel is the model for the restore flow
 type RestoreModel struct {
-	commits    []git.CommitInfo
-	cursor     int
-	state      RestoreState
-	err        error
-	selected   git.CommitInfo
-	branch     string
-	backupName string
-	width      int
-	height     int
+	commits       []git.CommitInfo
+	cursor        int
+	state         RestoreState
+	err           error
+	selected      git.CommitInfo
+	branch        string
+	backupName    string
+	width         int
+	height        int
+	diffPreview   git.CommitDiffSummary // Preview of file changes
+	uncommitted   git.CommitDiffSummary // Current uncommitted changes
+	hasUncommit   bool                  // Whether there are uncommitted changes
+	prevCursor    int                   // Track cursor changes for preview updates
 }
 
 // NewRestoreModel creates a new restore model
@@ -45,11 +51,25 @@ func NewRestoreModel() RestoreModel {
 		state = RestoreStateEmpty
 	}
 
+	// Get uncommitted changes
+	uncommitted, _ := git.GetUncommittedDiffStat()
+	hasUncommit := len(uncommitted.Files) > 0
+
+	// Get initial diff preview (comparing HEAD to first commit if any)
+	var diffPreview git.CommitDiffSummary
+	if len(commits) > 0 {
+		diffPreview, _ = git.GetDiffStatBetweenCommits(commits[0].FullHash, "HEAD")
+	}
+
 	return RestoreModel{
-		commits: commits,
-		cursor:  0,
-		state:   state,
-		branch:  branch,
+		commits:     commits,
+		cursor:      0,
+		state:       state,
+		branch:      branch,
+		diffPreview: diffPreview,
+		uncommitted: uncommitted,
+		hasUncommit: hasUncommit,
+		prevCursor:  -1, // Force initial update
 	}
 }
 
@@ -133,6 +153,13 @@ func (m RestoreModel) Update(msg tea.Msg) (RestoreModel, tea.Cmd) {
 		}
 	}
 
+	// Update diff preview when cursor changes
+	if m.state == RestoreStateList && m.cursor != m.prevCursor && len(m.commits) > 0 {
+		m.prevCursor = m.cursor
+		// Get diff between selected commit and HEAD
+		m.diffPreview, _ = git.GetDiffStatBetweenCommits(m.commits[m.cursor].FullHash, "HEAD")
+	}
+
 	return m, nil
 }
 
@@ -151,48 +178,15 @@ func (m RestoreModel) View() string {
 	case RestoreStateList:
 		s += RenderSubtitle("Select a save point to revert back to:") + "\n\n"
 
-		// Calculate maxVisible based on terminal height
-		// Each item takes ~3 lines, reserve ~8 lines for chrome (title, subtitle, help, borders)
-		maxVisible := 8
-		if m.height > 0 {
-			available := m.height - 10 // Reserve space for chrome
-			maxVisible = available / 3 // Each item is ~3 lines
-			if maxVisible < 2 {
-				maxVisible = 2
-			}
-			if maxVisible > 12 {
-				maxVisible = 12
-			}
-		}
+		// Build left panel (commit list)
+		leftPanel := m.renderCommitList()
 
-		start := 0
-		if m.cursor >= maxVisible {
-			start = m.cursor - maxVisible + 1
-		}
+		// Build right panel (preview)
+		rightPanel := m.renderPreviewPanel()
 
-		for i := start; i < len(m.commits) && i < start+maxVisible; i++ {
-			commit := m.commits[i]
-			cursor := "  "
-			style := ListItemStyle
-
-			if m.cursor == i {
-				cursor = MenuCursorStyle.Render("> ")
-				style = ListItemSelectedStyle
-			}
-
-			// Format: hash - message (time ago)
-			line := fmt.Sprintf("%s %s", commit.Hash, commit.Message)
-			if len(line) > 60 {
-				line = line[:57] + "..."
-			}
-
-			s += cursor + style.Render(line) + "\n"
-			s += "    " + MutedStyle.Render(commit.Timestamp) + "\n\n"
-		}
-
-		if len(m.commits) > maxVisible {
-			s += MutedStyle.Render(fmt.Sprintf("  ... %d total saves\n", len(m.commits)))
-		}
+		// Join panels side by side
+		content := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
+		s += content + "\n\n"
 
 		s += HelpBar([][]string{{"↑↓", "navigate"}, {"enter", "select"}, {"esc", "cancel"}})
 
@@ -221,6 +215,166 @@ func (m RestoreModel) View() string {
 	}
 
 	return BoxStyle.Render(s)
+}
+
+// renderCommitList renders the left panel with the commit list
+func (m RestoreModel) renderCommitList() string {
+	var lines []string
+
+	// Calculate maxVisible based on terminal height
+	maxVisible := 8
+	if m.height > 0 {
+		available := m.height - 14 // Reserve space for chrome
+		maxVisible = available / 3 // Each item is ~3 lines
+		if maxVisible < 2 {
+			maxVisible = 2
+		}
+		if maxVisible > 10 {
+			maxVisible = 10
+		}
+	}
+
+	start := 0
+	if m.cursor >= maxVisible {
+		start = m.cursor - maxVisible + 1
+	}
+
+	for i := start; i < len(m.commits) && i < start+maxVisible; i++ {
+		commit := m.commits[i]
+		cursor := "  "
+		style := ListItemStyle
+
+		if m.cursor == i {
+			cursor = MenuCursorStyle.Render("> ")
+			style = ListItemSelectedStyle
+		}
+
+		// Format: hash - message (time ago)
+		line := fmt.Sprintf("%s %s", commit.Hash, commit.Message)
+		if len(line) > 45 {
+			line = line[:42] + "..."
+		}
+
+		lines = append(lines, cursor+style.Render(line))
+		lines = append(lines, "    "+MutedStyle.Render(commit.Timestamp))
+		lines = append(lines, "")
+	}
+
+	if len(m.commits) > maxVisible {
+		lines = append(lines, MutedStyle.Render(fmt.Sprintf("  ... %d total saves", len(m.commits))))
+	}
+
+	// Set a fixed width for the left panel
+	leftStyle := lipgloss.NewStyle().Width(50)
+	return leftStyle.Render(strings.Join(lines, "\n"))
+}
+
+// renderPreviewPanel renders the right panel with the preview of what will happen
+func (m RestoreModel) renderPreviewPanel() string {
+	var lines []string
+
+	// Panel styling
+	panelStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorSecondary).
+		Padding(0, 1).
+		Width(40)
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ColorAccent)
+	addStyle := lipgloss.NewStyle().Foreground(ColorSuccess)
+	delStyle := lipgloss.NewStyle().Foreground(ColorDanger)
+
+	lines = append(lines, titleStyle.Render("Preview"))
+	lines = append(lines, "")
+
+	// If on the most recent commit (cursor == 0), just show uncommitted changes
+	if m.cursor == 0 {
+		if m.hasUncommit {
+			lines = append(lines, MutedStyle.Render("Uncommitted changes will be lost:"))
+			lines = append(lines, "")
+			lines = append(lines, m.renderFileStats(m.uncommitted, 6)...)
+		} else {
+			lines = append(lines, MutedStyle.Render("No uncommitted changes."))
+			lines = append(lines, "")
+			lines = append(lines, MutedStyle.Render("Reverting here has no effect."))
+		}
+	} else {
+		// Show commits that will be lost
+		lines = append(lines, ErrorStyle.Render("Saves that will be reverted:"))
+		lines = append(lines, "")
+
+		// Show commits between current position and selected
+		maxCommitsToShow := 4
+		for i := 0; i < m.cursor && i < maxCommitsToShow; i++ {
+			c := m.commits[i]
+			msg := c.Message
+			if len(msg) > 30 {
+				msg = msg[:27] + "..."
+			}
+			lines = append(lines, MutedStyle.Render(fmt.Sprintf("  • %s", msg)))
+		}
+		if m.cursor > maxCommitsToShow {
+			lines = append(lines, MutedStyle.Render(fmt.Sprintf("  ... and %d more", m.cursor-maxCommitsToShow)))
+		}
+		lines = append(lines, "")
+
+		// Show file changes
+		if len(m.diffPreview.Files) > 0 {
+			lines = append(lines, MutedStyle.Render("File changes:"))
+			lines = append(lines, "")
+			lines = append(lines, m.renderFileStats(m.diffPreview, 5)...)
+
+			// Summary
+			lines = append(lines, "")
+			summary := fmt.Sprintf("%s / %s",
+				addStyle.Render(fmt.Sprintf("+%d", m.diffPreview.TotalAdded)),
+				delStyle.Render(fmt.Sprintf("-%d", m.diffPreview.TotalDeleted)))
+			lines = append(lines, MutedStyle.Render("Total: ")+summary)
+		} else {
+			lines = append(lines, MutedStyle.Render("No file changes."))
+		}
+
+		// Also note uncommitted changes if any
+		if m.hasUncommit {
+			lines = append(lines, "")
+			lines = append(lines, ErrorStyle.Render("+ uncommitted changes"))
+		}
+	}
+
+	return panelStyle.Render(strings.Join(lines, "\n"))
+}
+
+// renderFileStats renders file statistics with +/- numbers
+func (m RestoreModel) renderFileStats(summary git.CommitDiffSummary, maxFiles int) []string {
+	var lines []string
+
+	addStyle := lipgloss.NewStyle().Foreground(ColorSuccess)
+	delStyle := lipgloss.NewStyle().Foreground(ColorDanger)
+
+	for i, f := range summary.Files {
+		if i >= maxFiles {
+			lines = append(lines, MutedStyle.Render(fmt.Sprintf("  ... and %d more files", len(summary.Files)-maxFiles)))
+			break
+		}
+
+		path := f.Path
+		if len(path) > 25 {
+			path = "..." + path[len(path)-22:]
+		}
+
+		var stat string
+		if f.IsBinary {
+			stat = MutedStyle.Render("(binary)")
+		} else {
+			stat = fmt.Sprintf("%s %s",
+				addStyle.Render(fmt.Sprintf("+%d", f.Additions)),
+				delStyle.Render(fmt.Sprintf("-%d", f.Deletions)))
+		}
+
+		lines = append(lines, fmt.Sprintf("  %-25s %s", path, stat))
+	}
+
+	return lines
 }
 
 // IsDone returns true if the restore flow is complete
