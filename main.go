@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -350,6 +351,32 @@ func generateTestData() {
 }
 
 func main() {
+	// Check for standalone commands first (these don't require git)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "help", "--help", "-h":
+			fmt.Println("smooth - Version control for vibe coders")
+			fmt.Println()
+			fmt.Println("Usage:")
+			fmt.Println("  smooth              Start the TUI interface")
+			fmt.Println("  smooth update       Update smooth to the latest version")
+			fmt.Println("  smooth web          Start the web interface (http://localhost:3000)")
+			fmt.Println("  smooth help         Show this help message")
+			return
+		case "update":
+			fmt.Println("Updating smooth to the latest version...")
+			fmt.Println()
+			cmd := exec.Command("sh", "-c", "curl -fsSL https://raw.githubusercontent.com/richardartoul/smooth-vibes/main/scripts/install.sh | sh")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				fmt.Printf("\nUpdate failed: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
+
 	// Check if we're in a git repo
 	if !git.IsRepo() {
 		// Run the init prompt UI
@@ -393,7 +420,7 @@ func main() {
 		}
 	}
 
-	// Check for subcommands
+	// Check for subcommands that require git
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "web":
@@ -405,15 +432,6 @@ func main() {
 			return
 		case "gen-test-data":
 			generateTestData()
-			return
-		case "help", "--help", "-h":
-			fmt.Println("smooth - Version control for vibe coders")
-			fmt.Println()
-			fmt.Println("Usage:")
-			fmt.Println("  smooth              Start the TUI interface")
-			fmt.Println("  smooth web          Start the web interface (http://localhost:3000)")
-			fmt.Println("  smooth gen-test-data Generate hundreds of garbage files for stress testing")
-			fmt.Println("  smooth help         Show this help message")
 			return
 		}
 	}
