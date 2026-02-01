@@ -436,19 +436,47 @@ func (m MenuModel) View() string {
 	if len(m.changedFiles) == 0 {
 		rightContent += MutedStyle.Render("No uncommitted changes") + "\n"
 	} else {
-		// Calculate available lines for files
+		// Calculate available lines for files (reserve space for scroll indicators)
+		maxVisibleFiles := panelHeight - 14
+		if maxVisibleFiles < 3 {
+			maxVisibleFiles = 3
+		}
+
+		totalFiles := len(m.changedFiles)
+
+		// Calculate visible window around cursor
+		startFileIdx := 0
+		if m.fileCursor >= maxVisibleFiles {
+			startFileIdx = m.fileCursor - maxVisibleFiles + 1
+		}
+		// Adjust if we're near the end
+		if startFileIdx+maxVisibleFiles > totalFiles {
+			startFileIdx = totalFiles - maxVisibleFiles
+			if startFileIdx < 0 {
+				startFileIdx = 0
+			}
+		}
+
+		endFileIdx := startFileIdx + maxVisibleFiles
+		if endFileIdx > totalFiles {
+			endFileIdx = totalFiles
+		}
+
+		// Show scroll indicator if there are files above
+		if startFileIdx > 0 {
+			rightContent += MutedStyle.Render(fmt.Sprintf("  ▲ %d more files above", startFileIdx)) + "\n"
+		}
+
+		lineCount := 0
 		maxFileLines := panelHeight - 12
 		if maxFileLines < 5 {
 			maxFileLines = 5
 		}
 
-		lineCount := 0
-		for i, file := range m.changedFiles {
+		for i := startFileIdx; i < endFileIdx; i++ {
+			file := m.changedFiles[i]
+
 			if lineCount >= maxFileLines {
-				remaining := len(m.changedFiles) - i
-				if remaining > 0 {
-					rightContent += MutedStyle.Render(fmt.Sprintf("  ... and %d more files", remaining)) + "\n"
-				}
 				break
 			}
 
@@ -545,6 +573,12 @@ func (m MenuModel) View() string {
 					lineCount++
 				}
 			}
+		}
+
+		// Show scroll indicator if there are files below
+		if endFileIdx < totalFiles {
+			remaining := totalFiles - endFileIdx
+			rightContent += MutedStyle.Render(fmt.Sprintf("  ▼ %d more files below", remaining)) + "\n"
 		}
 	}
 
