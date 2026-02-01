@@ -613,6 +613,12 @@ func DeleteBackup(backupBranch string) error {
 
 // GetFileDiff returns the diff for a specific file
 func GetFileDiff(path string) string {
+	// Check if this is a directory (e.g., untracked directories from git status)
+	info, err := os.Stat(path)
+	if err == nil && info.IsDir() {
+		return fmt.Sprintf("new directory: %s\n(contains untracked files)", path)
+	}
+
 	// Try diff against HEAD first (for tracked files)
 	output, err := Run("diff", "HEAD", "--", path)
 	if err != nil || output == "" {
