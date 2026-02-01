@@ -22,6 +22,7 @@ const (
 	StateRestore
 	StateBackups
 	StateExperiments
+	StateSettings
 )
 
 // Model is the main application model
@@ -33,6 +34,7 @@ type Model struct {
 	restore     ui.RestoreModel
 	backups     ui.BackupsModel
 	experiments ui.ExperimentsModel
+	settings    ui.SettingsModel
 	width       int
 	height      int
 }
@@ -71,6 +73,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "esc" {
 			switch m.state {
 			case StateSave, StateSync, StateRestore, StateBackups:
+				m.state = StateMenu
+				cmd := m.menu.RefreshStatus()
+				return m, cmd
+			case StateSettings:
+				if m.settings.HasUnsavedChanges() {
+					m.settings.PromptExit()
+					return m, nil
+				}
 				m.state = StateMenu
 				cmd := m.menu.RefreshStatus()
 				return m, cmd
@@ -116,6 +126,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				var cmd tea.Cmd
 				m.experiments, cmd = ui.NewAbandonExperimentModel()
 				return m, cmd
+			case ui.ActionSettings:
+				m.state = StateSettings
+				m.settings = ui.NewSettingsModel()
+				return m, m.settings.Init()
 			case ui.ActionQuit:
 				return m, tea.Quit
 			}
@@ -153,6 +167,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.experiments = ui.NewExperimentsModel()
 			return m, nil
 		}
+		// Settings doesn't auto-close, handled by esc key above
 	}
 
 	// Delegate to sub-models
@@ -176,6 +191,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		m.experiments, cmd = m.experiments.Update(msg)
+	case StateSettings:
+		m.settings, cmd = m.settings.Update(msg)
+		// Check if user confirmed exit
+		if m.settings.WantsBack() {
+			m.state = StateMenu
+			return m, m.menu.RefreshStatus()
+		}
 	}
 
 	return m, cmd
@@ -194,6 +216,8 @@ func (m Model) View() string {
 		return m.backups.View()
 	case StateExperiments:
 		return m.experiments.View()
+	case StateSettings:
+		return m.settings.View()
 	default:
 		return m.menu.View()
 	}

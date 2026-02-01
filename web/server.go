@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 
+	"vc/config"
 	"vc/git"
 )
 
@@ -30,6 +31,7 @@ func StartServer(port int) error {
 	http.HandleFunc("/api/experiment/abandon", handleAbandonExperiment)
 	http.HandleFunc("/api/experiment/switch", handleSwitchExperiment)
 	http.HandleFunc("/api/gitignore", handleGitignore)
+	http.HandleFunc("/api/config", handleConfig)
 
 	// Static files
 	staticFS, err := fs.Sub(staticFiles, "static")
@@ -106,7 +108,22 @@ func handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonResponse(w, map[string]string{"status": "ok"})
+	// Auto-sync if enabled
+	cfg, _ := config.Load()
+	autoSynced := false
+	var syncErr string
+	if cfg.AutoSyncEnabled && git.HasRemote() {
+		autoSynced = true
+		if err := git.Push(); err != nil {
+			syncErr = err.Error()
+		}
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"status":     "ok",
+		"autoSynced": autoSynced,
+		"syncError":  syncErr,
+	})
 }
 
 func handleSync(w http.ResponseWriter, r *http.Request) {
@@ -176,6 +193,10 @@ func handleRestore(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, "Failed to create backup: "+err.Error(), 500)
 		return
 	}
+
+	// Trim old backups based on config
+	cfg, _ := config.Load()
+	git.TrimBackups(branch, cfg.MaxBackups)
 
 	// Reset
 	if err := git.ResetHard(req.CommitHash); err != nil {
@@ -343,4 +364,59 @@ func handleGitignore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func handleConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		cfg, err := config.Load()
+		if err != nil {
+			errorResponse(w, err.Error(), 500)
+			return
+		}
+		jsonResponse(w, cfg)
+
+	case "POST":
+		var req struct {
+			AutoSyncEnabled *bool `json:"autoSyncEnabled,omitempty"`
+			MaxBackups      *int  `json:"maxBackups,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			errorResponse(w, "Invalid request", 400)
+			return
+		}
+
+		// Load current config
+		cfg, err := config.Load()
+		if err != nil {
+			errorResponse(w, err.Error(), 500)
+			return
+		}
+
+		// Update only provided fields
+		if req.AutoSyncEnabled != nil {
+			cfg.AutoSyncEnabled = *req.AutoSyncEnabled
+		}
+		if req.MaxBackups != nil {
+			val := *req.MaxBackups
+			if val < 1 {
+				val = 1
+			}
+			if val > 1000 {
+				val = 1000
+			}
+			cfg.MaxBackups = val
+		}
+
+		// Save updated config
+		if err := config.Save(cfg); err != nil {
+			errorResponse(w, err.Error(), 500)
+			return
+		}
+
+		jsonResponse(w, cfg)
+
+	default:
+		errorResponse(w, "Method not allowed", 405)
+	}
 }

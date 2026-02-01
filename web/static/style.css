@@ -590,6 +590,108 @@ body {
     font-size: 0.9rem;
 }
 
+/* Settings */
+.settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.setting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.setting-name {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.setting-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.setting-input-group input[type="number"] {
+    width: 80px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    text-align: center;
+}
+
+.setting-input-group input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent-teal);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 28px;
+    transition: var(--transition);
+}
+
+.toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: var(--text-secondary);
+    border-radius: 50%;
+    transition: var(--transition);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: linear-gradient(135deg, var(--accent-teal), #3dbdb5);
+    border-color: var(--accent-teal);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(24px);
+    background: white;
+}
+
+.toggle-switch input:focus + .toggle-slider {
+    box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.2);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     .app {
@@ -608,6 +710,12 @@ body {
     
     .new-experiment {
         flex-direction: column;
+    }
+    
+    .setting-item {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
     }
 }
 

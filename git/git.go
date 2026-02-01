@@ -507,3 +507,31 @@ func RestoreBackup(backupBranch string) error {
 func DeleteBackup(backupBranch string) error {
 	return DeleteBranch(backupBranch)
 }
+
+// TrimBackups removes old backups beyond the maxCount limit for a branch
+// Keeps the newest backups and deletes the oldest ones
+func TrimBackups(forBranch string, maxCount int) error {
+	if maxCount < 1 {
+		maxCount = 1
+	}
+
+	backups, err := ListBackups(forBranch)
+	if err != nil {
+		return err
+	}
+
+	// ListBackups returns newest first, so we keep the first maxCount
+	if len(backups) <= maxCount {
+		return nil
+	}
+
+	// Delete backups beyond the limit (oldest ones)
+	for i := maxCount; i < len(backups); i++ {
+		if err := DeleteBackup(backups[i].Name); err != nil {
+			// Continue trying to delete others even if one fails
+			continue
+		}
+	}
+
+	return nil
+}

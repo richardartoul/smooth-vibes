@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"vc/config"
 	"vc/git"
 )
 
@@ -69,6 +70,10 @@ func doRestore(commitHash string, branch string) tea.Cmd {
 		if err != nil {
 			return RestoreMsg{Err: fmt.Errorf("failed to create backup: %w", err)}
 		}
+
+		// Trim old backups based on config
+		cfg, _ := config.Load()
+		git.TrimBackups(branch, cfg.MaxBackups)
 
 		// Now do the reset
 		err = git.ResetHard(commitHash)

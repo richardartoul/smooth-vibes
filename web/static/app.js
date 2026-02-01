@@ -2,6 +2,8 @@
 let currentStatus = null;
 let selectedFiles = new Set();
 let pendingConfirm = null;
+let settingsDirty = false;
+let originalConfig = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,7 +25,25 @@ async function api(endpoint, options = {}) {
 }
 
 // Panel navigation
-function showPanel(panelId) {
+function showPanel(panelId, skipDirtyCheck = false) {
+    // Check for unsaved settings when leaving settings panel
+    const settingsPanel = document.getElementById('settingsPanel');
+    if (!skipDirtyCheck && settingsPanel && !settingsPanel.classList.contains('hidden') && panelId !== 'settingsPanel') {
+        checkSettingsDirty();
+        if (settingsDirty) {
+            showConfirm(
+                'Unsaved changes',
+                'You have unsaved settings changes. Do you want to discard them?',
+                () => {
+                    settingsDirty = false;
+                    originalConfig = null;
+                    showPanel(panelId, true);
+                }
+            );
+            return;
+        }
+    }
+    
     document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
     document.getElementById(panelId).classList.remove('hidden');
     
@@ -32,6 +52,7 @@ function showPanel(panelId) {
     if (panelId === 'restorePanel') loadCommits();
     if (panelId === 'backupsPanel') loadBackups();
     if (panelId === 'experimentsPanel') loadExperiments();
+    if (panelId === 'settingsPanel') loadConfig();
 }
 
 // Status
@@ -136,14 +157,25 @@ async function saveProgress() {
     
     showLoading(true);
     try {
-        await api('/save', {
+        const result = await api('/save', {
             method: 'POST',
             body: JSON.stringify({
                 message,
                 files: Array.from(selectedFiles)
             })
         });
-        showToast('Progress saved!', 'success');
+        
+        // Show appropriate message based on auto-sync result
+        if (result.autoSynced) {
+            if (result.syncError) {
+                showToast('Saved! (Auto-sync failed: ' + result.syncError + ')', 'success');
+            } else {
+                showToast('Saved and synced to GitHub!', 'success');
+            }
+        } else {
+            showToast('Progress saved!', 'success');
+        }
+        
         document.getElementById('commitMessage').value = '';
         refreshStatus();
         showPanel('menuPanel');
@@ -356,6 +388,65 @@ async function switchExperiment(branch) {
     showLoading(false);
 }
 
+// Settings
+async function loadConfig() {
+    try {
+        const cfg = await api('/config');
+        document.getElementById('autoSyncToggle').checked = cfg.autoSyncEnabled;
+        document.getElementById('maxBackupsInput').value = cfg.maxBackups;
+        // Store original values to detect changes
+        originalConfig = { ...cfg };
+        settingsDirty = false;
+    } catch (e) {
+        console.error('Failed to load config:', e);
+        showToast('Failed to load settings', 'error');
+    }
+}
+
+function checkSettingsDirty() {
+    if (!originalConfig) return false;
+    const autoSyncEnabled = document.getElementById('autoSyncToggle').checked;
+    const maxBackups = parseInt(document.getElementById('maxBackupsInput').value) || 10;
+    settingsDirty = (autoSyncEnabled !== originalConfig.autoSyncEnabled) || 
+                    (maxBackups !== originalConfig.maxBackups);
+    return settingsDirty;
+}
+
+async function updateConfig() {
+    const autoSyncEnabled = document.getElementById('autoSyncToggle').checked;
+    const maxBackups = parseInt(document.getElementById('maxBackupsInput').value) || 10;
+    
+    try {
+        const cfg = await api('/config', {
+            method: 'POST',
+            body: JSON.stringify({ autoSyncEnabled, maxBackups })
+        });
+        // Update original config after successful save
+        originalConfig = { ...cfg };
+        settingsDirty = false;
+        showToast('Settings saved', 'success');
+    } catch (e) {
+        showToast('Failed to save settings: ' + e.message, 'error');
+    }
+}
+
+function tryLeaveSettings(targetPanel) {
+    checkSettingsDirty();
+    if (settingsDirty) {
+        showConfirm(
+            'Unsaved changes',
+            'You have unsaved settings changes. Do you want to discard them?',
+            () => {
+                settingsDirty = false;
+                originalConfig = null;
+                showPanel(targetPanel);
+            }
+        );
+    } else {
+        showPanel(targetPanel);
+    }
+}
+
 // Sync
 async function syncToGitHub(remoteUrl = null) {
     showLoading(true);
@@ -474,6 +565,7 @@ document.addEventListener('keydown', (e) => {
         
         const menuPanel = document.getElementById('menuPanel');
         if (menuPanel.classList.contains('hidden')) {
+            // showPanel will handle the dirty check for settings
             showPanel('menuPanel');
         }
     }

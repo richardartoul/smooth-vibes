@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"vc/config"
 	"vc/git"
 )
 
@@ -19,6 +20,7 @@ const (
 	SaveStateGitignorePrompt
 	SaveStateInput
 	SaveStateSaving
+	SaveStateAutoSyncing
 	SaveStateSuccess
 	SaveStateError
 	SaveStateNoChanges
@@ -40,6 +42,8 @@ type SaveModel struct {
 	gitignoreFile     string // file being considered for gitignore
 	gitignoreIdx      int    // index of that file
 	gitignoreModified bool   // whether we added something to .gitignore
+	autoSynced        bool   // whether auto-sync was performed
+	syncErr           error  // error from auto-sync (if any)
 }
 
 // NewSaveModel creates a new save model
@@ -85,6 +89,11 @@ type SaveMsg struct {
 	Err error
 }
 
+// AutoSyncMsg is sent when auto-sync completes
+type AutoSyncMsg struct {
+	Err error
+}
+
 // doSave performs the actual git operations
 func doSave(message string, files []string) tea.Cmd {
 	return func() tea.Msg {
@@ -99,6 +108,14 @@ func doSave(message string, files []string) tea.Cmd {
 		}
 
 		return SaveMsg{Err: nil}
+	}
+}
+
+// doAutoSync performs the auto-sync to GitHub
+func doAutoSync() tea.Cmd {
+	return func() tea.Msg {
+		err := git.Push()
+		return AutoSyncMsg{Err: err}
 	}
 }
 
@@ -136,8 +153,20 @@ func (m SaveModel) Update(msg tea.Msg) (SaveModel, tea.Cmd) {
 			m.state = SaveStateError
 			m.err = msg.Err
 		} else {
+			// Check if auto-sync is enabled
+			cfg, _ := config.Load()
+			if cfg.AutoSyncEnabled && git.HasRemote() {
+				m.state = SaveStateAutoSyncing
+				m.autoSynced = true
+				return m, doAutoSync()
+			}
 			m.state = SaveStateSuccess
 		}
+		return m, nil
+
+	case AutoSyncMsg:
+		m.syncErr = msg.Err
+		m.state = SaveStateSuccess
 		return m, nil
 
 	case tea.KeyMsg:
@@ -243,8 +272,20 @@ func (m SaveModel) View() string {
 	case SaveStateSaving:
 		s += RenderHighlight("Saving your progress...") + "\n"
 
+	case SaveStateAutoSyncing:
+		s += RenderSuccess("✓ Progress saved!") + "\n\n"
+		s += RenderHighlight("Syncing to GitHub...") + "\n"
+
 	case SaveStateSuccess:
 		s += RenderSuccess("✓ Progress saved!") + "\n\n"
+		if m.autoSynced {
+			if m.syncErr != nil {
+				s += RenderError("✗ Auto-sync failed: ") + RenderMuted(m.syncErr.Error()) + "\n"
+			} else {
+				s += RenderSuccess("✓ Synced to GitHub!") + "\n"
+			}
+			s += "\n"
+		}
 		s += RenderMuted("Your work has been safely stored.") + "\n\n"
 		s += HelpText("Press any key to continue")
 

@@ -36,6 +36,7 @@ const (
 	ActionExperiments
 	ActionKeepExperiment
 	ActionAbandonExperiment
+	ActionSettings
 	ActionQuit
 )
 
@@ -130,6 +131,11 @@ func (m MenuModel) buildMenuItems() []MenuItem {
 			Title:       "Sync to GitHub",
 			Description: "Upload your saves to the cloud",
 			Action:      ActionSync,
+		},
+		MenuItem{
+			Title:       "Settings",
+			Description: "Configure auto-sync and backup options",
+			Action:      ActionSettings,
 		},
 		MenuItem{
 			Title:       "Quit",
