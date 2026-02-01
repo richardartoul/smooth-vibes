@@ -371,6 +371,28 @@ func main() {
 		}
 	}
 
+	// Check if we're on main/master branch
+	currentBranch, _ := git.CurrentBranch()
+	if !git.IsOnMain() {
+		// Run the branch prompt UI
+		branchModel := ui.NewBranchModel(currentBranch)
+		p := tea.NewProgram(branchModel, tea.WithAltScreen())
+		finalModel, err := p.Run()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Check if branch was switched
+		if m, ok := finalModel.(ui.BranchModel); ok {
+			if !m.ShouldContinue() {
+				os.Exit(0)
+			}
+		} else {
+			os.Exit(0)
+		}
+	}
+
 	// Check for subcommands
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
