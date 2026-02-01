@@ -43,14 +43,20 @@ const (
 
 // MenuModel is the model for the main menu
 type MenuModel struct {
-	items      []MenuItem
-	cursor     int
-	branch     string
-	hasChanges bool
-	isOnMain   bool
-	diff       string
-	width      int
-	height     int
+	items            []MenuItem
+	cursor           int
+	branch           string
+	hasChanges       bool
+	isOnMain         bool
+	diff             string
+	width            int
+	height           int
+	changedFiles     []git.FileChange
+	focusRight       bool
+	fileCursor       int
+	expandedFiles    map[string]bool
+	fileDiffs        map[string]string
+	diffScrollOffset map[string]int // Scroll offset per file
 }
 
 // NewMenuModel creates a new menu model
@@ -59,15 +65,22 @@ func NewMenuModel() MenuModel {
 	hasChanges := git.HasChanges()
 	isOnMain := git.IsOnMain()
 	diff := git.GetDiff()
+	changedFiles, _ := git.GetChangeSummary()
 
 	m := MenuModel{
-		cursor:     0,
-		branch:     branch,
-		hasChanges: hasChanges,
-		isOnMain:   isOnMain,
-		diff:       diff,
-		width:      120, // Default to wide, will be updated by WindowSizeMsg
-		height:     30,
+		cursor:           0,
+		branch:           branch,
+		hasChanges:       hasChanges,
+		isOnMain:         isOnMain,
+		diff:             diff,
+		width:            120, // Default to wide, will be updated by WindowSizeMsg
+		height:           30,
+		changedFiles:     changedFiles,
+		focusRight:       false,
+		fileCursor:       0,
+		expandedFiles:    make(map[string]bool),
+		fileDiffs:        make(map[string]string),
+		diffScrollOffset: make(map[string]int),
 	}
 	m.items = m.buildMenuItems()
 	return m
@@ -179,21 +192,93 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 		m.hasChanges = git.HasChanges()
 		m.isOnMain = git.IsOnMain()
 		m.diff = git.GetDiff()
+		m.changedFiles, _ = git.GetChangeSummary()
 		m.items = m.buildMenuItems()
+		// Reset file cursor if out of bounds
+		if m.fileCursor >= len(m.changedFiles) {
+			m.fileCursor = max(0, len(m.changedFiles)-1)
+		}
 		// Schedule next tick
 		return m, tickCmd()
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
+		// Check if we should show the diff panel (determines if right navigation is available)
+		showDiffPanel := m.width >= 90 && len(m.changedFiles) > 0
+
 		switch {
+		case key.Matches(msg, keys.Left):
+			if m.focusRight {
+				m.focusRight = false
+			}
+		case key.Matches(msg, keys.Right):
+			if showDiffPanel && !m.focusRight {
+				m.focusRight = true
+			}
 		case key.Matches(msg, keys.Up):
-			if m.cursor > 0 {
-				m.cursor--
+			if m.focusRight {
+				// Check if current file is expanded - if so, scroll the diff
+				if len(m.changedFiles) > 0 {
+					filePath := m.changedFiles[m.fileCursor].Path
+					if m.expandedFiles[filePath] {
+						// Scroll up in diff
+						if m.diffScrollOffset[filePath] > 0 {
+							m.diffScrollOffset[filePath]--
+						}
+					} else {
+						// Move to previous file
+						if m.fileCursor > 0 {
+							m.fileCursor--
+						}
+					}
+				}
+			} else {
+				if m.cursor > 0 {
+					m.cursor--
+				}
 			}
 		case key.Matches(msg, keys.Down):
-			if m.cursor < len(m.items)-1 {
-				m.cursor++
+			if m.focusRight {
+				// Check if current file is expanded - if so, scroll the diff
+				if len(m.changedFiles) > 0 {
+					filePath := m.changedFiles[m.fileCursor].Path
+					if m.expandedFiles[filePath] {
+						// Scroll down in diff
+						diff := m.fileDiffs[filePath]
+						diffLines := strings.Split(diff, "\n")
+						maxScroll := len(diffLines) - m.getMaxDiffLines()
+						if maxScroll < 0 {
+							maxScroll = 0
+						}
+						if m.diffScrollOffset[filePath] < maxScroll {
+							m.diffScrollOffset[filePath]++
+						}
+					} else {
+						// Move to next file
+						if m.fileCursor < len(m.changedFiles)-1 {
+							m.fileCursor++
+						}
+					}
+				}
+			} else {
+				if m.cursor < len(m.items)-1 {
+					m.cursor++
+				}
+			}
+		case key.Matches(msg, keys.Enter), key.Matches(msg, keys.Space):
+			if m.focusRight && len(m.changedFiles) > 0 {
+				// Toggle diff for the selected file
+				filePath := m.changedFiles[m.fileCursor].Path
+				if m.expandedFiles[filePath] {
+					m.expandedFiles[filePath] = false
+				} else {
+					// Load diff if not cached
+					if _, ok := m.fileDiffs[filePath]; !ok {
+						m.fileDiffs[filePath] = git.GetFileDiff(filePath)
+					}
+					m.expandedFiles[filePath] = true
+				}
 			}
 		}
 	}
@@ -227,8 +312,12 @@ func (m MenuModel) View() string {
 	}
 	leftContent += HeaderBoxStyle.Render(statusText) + "\n\n"
 
-	// Title
-	leftContent += RenderTitle("What would you like to do?") + "\n\n"
+	// Title - show focus indicator
+	menuTitle := "What would you like to do?"
+	if showDiffPanel && !m.focusRight {
+		menuTitle = "▸ " + menuTitle
+	}
+	leftContent += RenderTitle(menuTitle) + "\n\n"
 
 	// Menu items
 	// Hide descriptions if narrow OR short terminal
@@ -246,9 +335,12 @@ func (m MenuModel) View() string {
 		cursor := "  "
 		style := MenuItemStyle
 
-		if m.cursor == i {
+		if m.cursor == i && !m.focusRight {
 			cursor = MenuCursorStyle.Render("> ")
 			style = MenuItemSelectedStyle
+		} else if m.cursor == i && m.focusRight {
+			// Show dimmed selection when right panel is focused
+			cursor = MutedStyle.Render("> ")
 		}
 
 		title := style.Render(item.Title)
@@ -265,12 +357,43 @@ func (m MenuModel) View() string {
 		leftContent += "\n" + MutedStyle.Render("  "+selectedDesc) + "\n"
 	}
 
-	// Help bar - rendered separately and positioned at bottom center
-	helpBar := HelpBar([][]string{
-		{"↑↓", "navigate"},
-		{"enter", "select"},
-		{"q", "quit"},
-	})
+	// Help bar - changes based on focus
+	var helpBar string
+	// Check if we're viewing an expanded diff
+	viewingExpandedDiff := false
+	if m.focusRight && len(m.changedFiles) > 0 {
+		filePath := m.changedFiles[m.fileCursor].Path
+		viewingExpandedDiff = m.expandedFiles[filePath]
+	}
+
+	if m.focusRight && viewingExpandedDiff {
+		helpBar = HelpBar([][]string{
+			{"↑↓", "scroll diff"},
+			{"⏎/space", "collapse"},
+			{"←", "menu"},
+			{"q", "quit"},
+		})
+	} else if m.focusRight {
+		helpBar = HelpBar([][]string{
+			{"↑↓", "navigate"},
+			{"⏎/space", "expand diff"},
+			{"←", "menu"},
+			{"q", "quit"},
+		})
+	} else if showDiffPanel && len(m.changedFiles) > 0 {
+		helpBar = HelpBar([][]string{
+			{"↑↓", "navigate"},
+			{"enter", "select"},
+			{"→", "changes"},
+			{"q", "quit"},
+		})
+	} else {
+		helpBar = HelpBar([][]string{
+			{"↑↓", "navigate"},
+			{"enter", "select"},
+			{"q", "quit"},
+		})
+	}
 
 	// If no split view, just return the menu
 	if !showDiffPanel {
@@ -300,61 +423,135 @@ func (m MenuModel) View() string {
 		Padding(1, 2).
 		Render(leftContent)
 
-	// === RIGHT PANEL: Diff ===
+	// === RIGHT PANEL: Changed Files ===
 	var rightContent string
-	rightContent += RenderSubtitle("Current Changes") + "\n\n"
 
-	// Format and truncate diff for display
-	diffLines := strings.Split(m.diff, "\n")
-	maxLines := panelHeight - 10
-	if maxLines < 10 {
-		maxLines = 10
+	// Title with focus indicator
+	changesTitle := "Current Changes"
+	if m.focusRight {
+		changesTitle = "▸ " + changesTitle
 	}
-	if maxLines > 30 {
-		maxLines = 30
-	}
+	rightContent += RenderSubtitle(changesTitle) + "\n\n"
 
-	lineCount := 0
-	for _, line := range diffLines {
-		if lineCount >= maxLines {
-			remaining := len(diffLines) - lineCount
-			if remaining > 0 {
-				rightContent += MutedStyle.Render(fmt.Sprintf("... and %d more lines", remaining)) + "\n"
-			}
-			break
-		}
-		// Skip empty lines at start
-		if lineCount == 0 && line == "" {
-			continue
-		}
-		// Color-code diff lines
-		displayLine := truncateLine(line, rightWidth-6)
-		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
-			rightContent += SuccessStyle.Render(displayLine) + "\n"
-		} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
-			rightContent += ErrorStyle.Render(displayLine) + "\n"
-		} else if strings.HasPrefix(line, "@@") {
-			rightContent += HighlightStyle.Render(displayLine) + "\n"
-		} else if strings.HasPrefix(line, " M ") || strings.HasPrefix(line, " A ") || strings.HasPrefix(line, " D ") || strings.HasPrefix(line, "M ") || strings.HasPrefix(line, "A ") {
-			// Git status short format
-			if strings.HasPrefix(line, " A ") || strings.HasPrefix(line, "A ") {
-				rightContent += SuccessStyle.Render(displayLine) + "\n"
-			} else if strings.HasPrefix(line, " D ") || strings.HasPrefix(line, "D ") {
-				rightContent += ErrorStyle.Render(displayLine) + "\n"
-			} else {
-				rightContent += HighlightStyle.Render(displayLine) + "\n"
-			}
-		} else if strings.Contains(line, "(new file)") {
-			// Untracked files formatted like diff stats - same color as other files
-			rightContent += MutedStyle.Render(displayLine) + "\n"
-		} else {
-			rightContent += MutedStyle.Render(displayLine) + "\n"
-		}
-		lineCount++
-	}
-
-	if m.diff == "" || m.diff == "No changes" {
+	if len(m.changedFiles) == 0 {
 		rightContent += MutedStyle.Render("No uncommitted changes") + "\n"
+	} else {
+		// Calculate available lines for files
+		maxFileLines := panelHeight - 12
+		if maxFileLines < 5 {
+			maxFileLines = 5
+		}
+
+		lineCount := 0
+		for i, file := range m.changedFiles {
+			if lineCount >= maxFileLines {
+				remaining := len(m.changedFiles) - i
+				if remaining > 0 {
+					rightContent += MutedStyle.Render(fmt.Sprintf("  ... and %d more files", remaining)) + "\n"
+				}
+				break
+			}
+
+			// Status icon
+			var statusIcon string
+			switch file.Status {
+			case "added":
+				statusIcon = SuccessStyle.Render("+")
+			case "deleted":
+				statusIcon = ErrorStyle.Render("-")
+			case "modified":
+				statusIcon = HighlightStyle.Render("~")
+			case "renamed":
+				statusIcon = HighlightStyle.Render("→")
+			default:
+				statusIcon = MutedStyle.Render("?")
+			}
+
+			// Cursor and selection
+			cursor := "  "
+			fileStyle := MutedStyle
+			if i == m.fileCursor && m.focusRight {
+				cursor = MenuCursorStyle.Render("> ")
+				fileStyle = lipgloss.NewStyle().Bold(true)
+			} else if i == m.fileCursor && !m.focusRight {
+				cursor = MutedStyle.Render("> ")
+			}
+
+			// Expand/collapse indicator
+			expandIcon := "▶"
+			if m.expandedFiles[file.Path] {
+				expandIcon = "▼"
+			}
+
+			// Truncate filename if needed
+			displayPath := truncateLine(file.Path, rightWidth-12)
+			rightContent += cursor + MutedStyle.Render(expandIcon) + " " + statusIcon + " " + fileStyle.Render(displayPath) + "\n"
+			lineCount++
+
+			// Show diff if expanded
+			if m.expandedFiles[file.Path] {
+				diff := m.fileDiffs[file.Path]
+				diffLines := strings.Split(diff, "\n")
+
+				// Filter out leading empty lines
+				startIdx := 0
+				for startIdx < len(diffLines) && diffLines[startIdx] == "" {
+					startIdx++
+				}
+				diffLines = diffLines[startIdx:]
+
+				maxDiffLines := m.getMaxDiffLines()
+				scrollOffset := m.diffScrollOffset[file.Path]
+				totalLines := len(diffLines)
+
+				// Show scroll indicator if there's content above
+				if scrollOffset > 0 {
+					rightContent += MutedStyle.Render("    ▲ scroll up for more") + "\n"
+					lineCount++
+				}
+
+				// Calculate visible window
+				endIdx := scrollOffset + maxDiffLines
+				if endIdx > totalLines {
+					endIdx = totalLines
+				}
+
+				visibleLines := diffLines[scrollOffset:endIdx]
+				for _, line := range visibleLines {
+					if lineCount >= maxFileLines {
+						break
+					}
+					// Color-code diff lines
+					displayLine := truncateLine(line, rightWidth-10)
+					prefix := "    "
+					if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+						rightContent += prefix + SuccessStyle.Render(displayLine) + "\n"
+					} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+						rightContent += prefix + ErrorStyle.Render(displayLine) + "\n"
+					} else if strings.HasPrefix(line, "@@") {
+						rightContent += prefix + HighlightStyle.Render(displayLine) + "\n"
+					} else if strings.HasPrefix(line, "new file:") || strings.HasPrefix(line, "---") {
+						rightContent += prefix + MutedStyle.Render(displayLine) + "\n"
+					} else {
+						rightContent += prefix + MutedStyle.Render(displayLine) + "\n"
+					}
+					lineCount++
+				}
+
+				// Show scroll indicator if there's content below
+				if endIdx < totalLines {
+					remaining := totalLines - endIdx
+					rightContent += MutedStyle.Render(fmt.Sprintf("    ▼ %d more lines below", remaining)) + "\n"
+					lineCount++
+				}
+			}
+		}
+	}
+
+	// Border color changes based on focus
+	borderColor := ColorSecondary
+	if m.focusRight {
+		borderColor = ColorPrimary
 	}
 
 	rightPanel := lipgloss.NewStyle().
@@ -362,7 +559,7 @@ func (m MenuModel) View() string {
 		Height(panelHeight-6). // Account for border and bottom help bar
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ColorSecondary).
+		BorderForeground(borderColor).
 		Render(rightContent)
 
 	// Join panels horizontally
@@ -401,6 +598,20 @@ func truncateLine(line string, maxWidth int) string {
 	return line
 }
 
+// getMaxDiffLines returns the max number of diff lines that can be displayed
+func (m MenuModel) getMaxDiffLines() int {
+	panelHeight := m.height - 2
+	if panelHeight < 10 {
+		panelHeight = 10
+	}
+	// Available space minus header, file list overhead, and some padding
+	maxLines := panelHeight - 10
+	if maxLines < 5 {
+		maxLines = 5
+	}
+	return maxLines
+}
+
 // SelectedAction returns the currently selected action
 func (m MenuModel) SelectedAction() MenuAction {
 	return m.items[m.cursor].Action
@@ -412,11 +623,20 @@ func (m *MenuModel) RefreshStatus() tea.Cmd {
 	m.hasChanges = git.HasChanges()
 	m.isOnMain = git.IsOnMain()
 	m.diff = git.GetDiff()
+	m.changedFiles, _ = git.GetChangeSummary()
 	m.items = m.buildMenuItems()
 	// Reset cursor if it's out of bounds
 	if m.cursor >= len(m.items) {
 		m.cursor = len(m.items) - 1
 	}
+	// Reset file cursor if out of bounds
+	if m.fileCursor >= len(m.changedFiles) {
+		m.fileCursor = max(0, len(m.changedFiles)-1)
+	}
+	// Clear cached diffs and expanded state on refresh
+	m.expandedFiles = make(map[string]bool)
+	m.fileDiffs = make(map[string]string)
+	m.diffScrollOffset = make(map[string]int)
 	// Return tick command to restart periodic refresh
 	return tickCmd()
 }
@@ -431,7 +651,10 @@ func (m *MenuModel) SetSize(width, height int) {
 type keyMap struct {
 	Up    key.Binding
 	Down  key.Binding
+	Left  key.Binding
+	Right key.Binding
 	Enter key.Binding
+	Space key.Binding
 	Quit  key.Binding
 }
 
@@ -444,9 +667,21 @@ var keys = keyMap{
 		key.WithKeys("down", "j"),
 		key.WithHelp("↓/j", "down"),
 	),
+	Left: key.NewBinding(
+		key.WithKeys("left", "h"),
+		key.WithHelp("←/h", "left"),
+	),
+	Right: key.NewBinding(
+		key.WithKeys("right", "l"),
+		key.WithHelp("→/l", "right"),
+	),
 	Enter: key.NewBinding(
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "select"),
+	),
+	Space: key.NewBinding(
+		key.WithKeys(" "),
+		key.WithHelp("space", "toggle diff"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),

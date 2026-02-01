@@ -611,6 +611,44 @@ func DeleteBackup(backupBranch string) error {
 	return DeleteBranch(backupBranch)
 }
 
+// GetFileDiff returns the diff for a specific file
+func GetFileDiff(path string) string {
+	// Try diff against HEAD first (for tracked files)
+	output, err := Run("diff", "HEAD", "--", path)
+	if err != nil || output == "" {
+		// Try without HEAD for new repos
+		output, _ = Run("diff", "--", path)
+	}
+
+	// For untracked files, show the file content as "added"
+	if output == "" {
+		status, _ := Run("status", "--porcelain", "--", path)
+		if strings.HasPrefix(status, "??") {
+			// Untracked file - show content as new file
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return "Error reading file"
+			}
+			lines := strings.Split(string(content), "\n")
+			var result strings.Builder
+			result.WriteString(fmt.Sprintf("new file: %s\n", path))
+			result.WriteString("---\n")
+			for i, line := range lines {
+				if i == len(lines)-1 && line == "" {
+					continue // Skip trailing empty line
+				}
+				result.WriteString("+ " + line + "\n")
+			}
+			return result.String()
+		}
+	}
+
+	if output == "" {
+		return "No changes in this file"
+	}
+	return output
+}
+
 // TrimBackups removes old backups beyond the maxCount limit for a branch
 // Keeps the newest backups and deletes the oldest ones
 func TrimBackups(forBranch string, maxCount int) error {
