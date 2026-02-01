@@ -20,8 +20,6 @@ type AppState int
 
 const (
 	StateMenu AppState = iota
-	StateSave
-	StateSaveV2
 	StateQuicksave
 	StateSync
 	StateRestore
@@ -34,8 +32,6 @@ const (
 type Model struct {
 	state       AppState
 	menu        ui.MenuModel
-	save        ui.SaveModel
-	saveV2      ui.SaveV2Model
 	quicksave   ui.QuicksaveModel
 	sync        ui.SyncModel
 	restore     ui.RestoreModel
