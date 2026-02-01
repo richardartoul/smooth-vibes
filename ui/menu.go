@@ -235,10 +235,7 @@ func (m MenuModel) View() string {
 	showDescriptions := m.width >= 60 && m.height >= 25
 
 	// Calculate visible range for scrolling
-	maxVisible := 8
-	if !showDescriptions {
-		maxVisible = 12 // Can show more when not showing descriptions
-	}
+	maxVisible := 12
 	start := 0
 	if m.cursor >= maxVisible {
 		start = m.cursor - maxVisible + 1
@@ -255,16 +252,17 @@ func (m MenuModel) View() string {
 		}
 
 		title := style.Render(item.Title)
-		if showDescriptions {
-			desc := MutedStyle.Render("  " + item.Description)
-			leftContent += cursor + title + "\n" + desc + "\n\n"
-		} else {
-			leftContent += cursor + title + "\n"
-		}
+		leftContent += cursor + title + "\n"
 	}
 
 	if len(m.items) > maxVisible {
 		leftContent += MutedStyle.Render(fmt.Sprintf("  ... %d total items\n", len(m.items)))
+	}
+
+	// Show selected item's description in a fixed location below the menu
+	if showDescriptions {
+		selectedDesc := m.items[m.cursor].Description
+		leftContent += "\n" + MutedStyle.Render("  "+selectedDesc) + "\n"
 	}
 
 	// Help
