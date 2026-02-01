@@ -242,18 +242,17 @@ func generateTestData() {
 		".cpp", ".hpp", ".java", ".rb", ".sh", ".sql", ".log", ".csv",
 	}
 
-	// Directories to create files in
-	dirs := []string{
-		"test-data",
-		"test-data/src",
-		"test-data/lib",
-		"test-data/config",
-		"test-data/docs",
-		"test-data/assets",
-		"test-data/scripts",
-		"test-data/components",
-		"test-data/utils",
-		"test-data/models",
+	// Base directories - spread across the project like a real codebase
+	baseDirs := []string{
+		"src", "lib", "pkg", "internal", "cmd", "api", "web", "docs",
+		"scripts", "tools", "test", "spec", "bench", "examples", "vendor",
+	}
+
+	// Subdirectories to nest under base dirs
+	subDirs := []string{
+		"", "utils", "helpers", "models", "controllers", "services", "handlers",
+		"middleware", "config", "types", "interfaces", "components", "hooks",
+		"views", "templates", "assets", "styles", "images", "data", "fixtures",
 	}
 
 	// Word lists for generating random names and content
@@ -270,6 +269,18 @@ func generateTestData() {
 	verbs := []string{
 		"jumps", "runs", "walks", "flies", "swims", "climbs", "falls", "rises",
 		"grows", "shrinks", "opens", "closes", "starts", "stops", "moves", "stays",
+	}
+
+	// Build list of all directories to use
+	var dirs []string
+	for _, base := range baseDirs {
+		for _, sub := range subDirs {
+			if sub == "" {
+				dirs = append(dirs, filepath.Join("_testdata", base))
+			} else {
+				dirs = append(dirs, filepath.Join("_testdata", base, sub))
+			}
+		}
 	}
 
 	// Create directories
@@ -304,7 +315,7 @@ func generateTestData() {
 
 	// Create files
 	totalFiles := 500
-	fmt.Printf("Generating %d test files...\n", totalFiles)
+	fmt.Printf("Generating %d test files across %d directories...\n", totalFiles, len(dirs))
 
 	for i := 0; i < totalFiles; i++ {
 		// Pick random directory and extension
@@ -329,8 +340,8 @@ func generateTestData() {
 		}
 	}
 
-	fmt.Printf("\n✓ Generated %d test files in test-data/\n", totalFiles)
-	fmt.Println("\nTo clean up later, run: rm -rf test-data/")
+	fmt.Printf("\n✓ Generated %d test files across %d directories in _testdata/\n", totalFiles, len(dirs))
+	fmt.Println("\nTo clean up later, run: rm -rf _testdata/")
 }
 
 func main() {
