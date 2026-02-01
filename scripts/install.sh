@@ -29,13 +29,21 @@ fi
 
 # Get latest version
 echo "Finding latest release..."
-LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$LATEST" ]; then
+    echo "Error: Could not find latest release."
+    echo "Please check https://github.com/${REPO}/releases for available versions."
+    exit 1
+fi
+
 VERSION="${LATEST#v}"
 
 # Download URL
 URL="https://github.com/${REPO}/releases/download/${LATEST}/smooth_${VERSION}_${OS}_${ARCH}.${EXT}"
 
 echo "Downloading smooth ${LATEST} for ${OS}/${ARCH}..."
+echo "URL: ${URL}"
 
 # Create temp directory
 TMP_DIR=$(mktemp -d)
