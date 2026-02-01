@@ -253,21 +253,21 @@ func (m SaveModel) View() string {
 		total := len(m.files)
 		s += MutedStyle.Render(fmt.Sprintf("%d of %d files selected", selected, total)) + "\n\n"
 		
-		s += HelpText("↑/↓: navigate • space: toggle • enter: continue • esc: cancel")
+		s += HelpBar([][]string{{"↑↓", "navigate"}, {"space", "toggle"}, {"enter", "continue"}, {"esc", "cancel"}})
 
 	case SaveStateGitignorePrompt:
 		s += RenderSubtitle("Add to .gitignore?") + "\n\n"
 		s += "You deselected: " + HighlightStyle.Render(m.gitignoreFile) + "\n\n"
 		s += RenderMuted("Would you like to add this file to .gitignore") + "\n"
 		s += RenderMuted("so it's never tracked?") + "\n\n"
-		s += HelpText("y: yes, add to .gitignore • n: no, just skip this time")
+		s += HelpBar([][]string{{"y", "add to .gitignore"}, {"n", "skip this time"}})
 
 	case SaveStateInput:
 		// Show summary of what will be saved
 		s += m.renderSummary() + "\n"
 		s += RenderSubtitle("Describe what you worked on:") + "\n\n"
 		s += m.textInput.View() + "\n\n"
-		s += HelpText("enter: save • esc: go back")
+		s += HelpBar([][]string{{"enter", "save"}, {"esc", "go back"}})
 
 	case SaveStateSaving:
 		s += RenderHighlight("Saving your progress...") + "\n"

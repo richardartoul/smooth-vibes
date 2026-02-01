@@ -199,10 +199,46 @@ func Banner() string {
 		Render(banner)
 }
 
-// HelpText renders the bottom help text
+// HelpKey renders a keyboard key with subtle styling
+func HelpKey(key string) string {
+	return lipgloss.NewStyle().
+		Foreground(ColorSecondary).
+		Render(key)
+}
+
+// HelpText renders the bottom help text with styled keys
+// Format: "key1: action1 • key2: action2" or use HelpBar for more control
 func HelpText(text string) string {
 	return lipgloss.NewStyle().
 		Foreground(ColorMuted).
 		MarginTop(1).
 		Render(text)
+}
+
+// HelpBar renders a cleaner help bar with styled key hints
+func HelpBar(hints [][]string) string {
+	var parts []string
+	for _, hint := range hints {
+		if len(hint) >= 2 {
+			key := HelpKey(hint[0])
+			action := MutedStyle.Render(hint[1])
+			parts = append(parts, key+" "+action)
+		}
+	}
+
+	separator := lipgloss.NewStyle().
+		Foreground(ColorMuted).
+		Render("  ·  ")
+
+	result := ""
+	for i, part := range parts {
+		if i > 0 {
+			result += separator
+		}
+		result += part
+	}
+
+	return lipgloss.NewStyle().
+		MarginTop(1).
+		Render(result)
 }

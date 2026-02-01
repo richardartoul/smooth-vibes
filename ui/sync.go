@@ -164,7 +164,7 @@ func (m SyncModel) View() string {
 		s += RenderMuted("  2. Click the green 'Code' button") + "\n"
 		s += RenderMuted("  3. Select 'SSH' and copy the URL") + "\n"
 		s += RenderMuted("     (looks like git@github.com:user/repo.git)") + "\n\n"
-		s += HelpText("enter: save and sync • esc: cancel")
+		s += HelpBar([][]string{{"enter", "save and sync"}, {"esc", "cancel"}})
 
 	case SyncStateSyncing:
 		s += m.spinner.View() + " " + RenderHighlight("Syncing...") + "\n\n"

@@ -209,15 +209,15 @@ func (m SettingsModel) View() string {
 		if m.dirty {
 			s += HighlightStyle.Render("• Unsaved changes") + "\n\n"
 			if m.cursor == 3 {
-				s += HelpText("↑/↓: navigate • ←/→: cycle theme • s: save • esc: back")
+				s += HelpBar([][]string{{"↑↓", "navigate"}, {"←→", "cycle theme"}, {"s", "save"}, {"esc", "back"}})
 			} else {
-				s += HelpText("↑/↓: navigate • enter: toggle • s: save • esc: back")
+				s += HelpBar([][]string{{"↑↓", "navigate"}, {"enter", "toggle"}, {"s", "save"}, {"esc", "back"}})
 			}
 		} else {
 			if m.cursor == 3 {
-				s += HelpText("↑/↓: navigate • ←/→: cycle theme • esc: back")
+				s += HelpBar([][]string{{"↑↓", "navigate"}, {"←→", "cycle theme"}, {"esc", "back"}})
 			} else {
-				s += HelpText("↑/↓: navigate • enter: toggle • esc: back")
+				s += HelpBar([][]string{{"↑↓", "navigate"}, {"enter", "toggle"}, {"esc", "back"}})
 			}
 		}
 
@@ -225,7 +225,7 @@ func (m SettingsModel) View() string {
 		s += RenderSubtitle("Maximum backups to keep:") + "\n\n"
 		s += m.textInput.View() + "\n\n"
 		s += RenderMuted("Enter a number between 1 and 1000") + "\n\n"
-		s += HelpText("enter: confirm • esc: cancel")
+		s += HelpBar([][]string{{"enter", "confirm"}, {"esc", "cancel"}})
 
 	case SettingsStateSaving:
 		s += RenderHighlight("Saving settings...") + "\n"
@@ -244,7 +244,7 @@ func (m SettingsModel) View() string {
 	case SettingsStateConfirmExit:
 		s += RenderError("⚠ You have unsaved changes!") + "\n\n"
 		s += RenderMuted("Do you want to save before leaving?") + "\n\n"
-		s += HelpText("s: save and exit • y: exit without saving • n: cancel")
+		s += HelpBar([][]string{{"s", "save and exit"}, {"y", "exit without saving"}, {"n", "cancel"}})
 	}
 
 	return BoxStyle.Render(s)

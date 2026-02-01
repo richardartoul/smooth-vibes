@@ -393,13 +393,13 @@ func (m ExperimentsModel) View() string {
 			s += "\n"
 		}
 
-		s += HelpText("↑/↓: navigate • enter: select • esc: back")
+		s += HelpBar([][]string{{"↑↓", "navigate"}, {"enter", "select"}, {"esc", "back"}})
 
 	case ExperimentsStateNameInput:
 		s += RenderSubtitle("Name your experiment:") + "\n\n"
 		s += m.textInput.View() + "\n\n"
 		s += RenderMuted("Use a short, descriptive name (no spaces)") + "\n\n"
-		s += HelpText("enter: create • esc: cancel")
+		s += HelpBar([][]string{{"enter", "create"}, {"esc", "cancel"}})
 
 	case ExperimentsStateCreating:
 		s += RenderHighlight("Creating experiment...") + "\n"
@@ -456,7 +456,7 @@ func (m ExperimentsModel) View() string {
 			s += MutedStyle.Render(fmt.Sprintf("  ... %d total branches\n", len(allOptions)))
 		}
 
-		s += HelpText("↑/↓: navigate • enter: switch • esc: back")
+		s += HelpBar([][]string{{"↑↓", "navigate"}, {"enter", "switch"}, {"esc", "back"}})
 
 	case ExperimentsStateSwitching:
 		s += RenderHighlight("Switching...") + "\n"

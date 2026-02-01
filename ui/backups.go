@@ -179,7 +179,7 @@ func (m BackupsModel) View() string {
 			s += MutedStyle.Render(fmt.Sprintf("  ... %d total backups\n", len(m.backups)))
 		}
 
-		s += HelpText("↑/↓: navigate • enter: restore • esc: cancel")
+		s += HelpBar([][]string{{"↑↓", "navigate"}, {"enter", "restore"}, {"esc", "cancel"}})
 
 	case BackupsStateConfirm:
 		s += RenderError("⚠ Warning: This will discard current changes!") + "\n\n"

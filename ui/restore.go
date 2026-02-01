@@ -194,7 +194,7 @@ func (m RestoreModel) View() string {
 			s += MutedStyle.Render(fmt.Sprintf("  ... %d total saves\n", len(m.commits)))
 		}
 
-		s += HelpText("↑/↓: navigate • enter: select • esc: cancel")
+		s += HelpBar([][]string{{"↑↓", "navigate"}, {"enter", "select"}, {"esc", "cancel"}})
 
 	case RestoreStateConfirm:
 		s += RenderError("⚠ Warning: This will discard current changes!") + "\n\n"

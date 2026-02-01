@@ -266,7 +266,11 @@ func (m MenuModel) View() string {
 	}
 
 	// Help
-	leftContent += "\n" + HelpText("↑/↓: navigate • enter: select • q: quit")
+	leftContent += "\n" + HelpBar([][]string{
+		{"↑↓", "navigate"},
+		{"enter", "select"},
+		{"q", "quit"},
+	})
 
 	// If no split view, just return the menu
 	if !showDiffPanel {
